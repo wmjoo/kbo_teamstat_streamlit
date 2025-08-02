@@ -757,10 +757,10 @@ def main():
         st.plotly_chart(fig3, use_container_width=True)
     
     with tab4:
-        st.header("🏆 우승 확률")
+        # st.header("🏆 우승 확률")
         
         df_final = st.session_state['df_final']
-        st.subheader("우승 확률 계산")
+        # st.subheader("우승 확률 계산")
         
         # 시뮬레이션 횟수 설정
         col1, col2 = st.columns(2)
