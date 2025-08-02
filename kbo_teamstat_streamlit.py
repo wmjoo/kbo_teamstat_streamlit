@@ -349,11 +349,32 @@ def scrape_kbo_standings():
         response.raise_for_status()
         
         soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # 기준 날짜 추출
+        date_info = None
+        
+        # 페이지에서 날짜 정보 찾기
+        all_texts = soup.get_text()
+        lines = all_texts.split('\n')
+        for line in lines:
+            line = line.strip()
+            if '기준' in line and ('년' in line and '월' in line):
+                date_info = line
+                break
+        
+        # 대안: 특정 패턴으로 날짜 찾기
+        if not date_info:
+            import re
+            date_pattern = r'\([0-9]{4}년\s*[0-9]{2}월[0-9]{2}일\s*기준\)'
+            matches = re.findall(date_pattern, all_texts)
+            if matches:
+                date_info = matches[0]
+        
         table = soup.find('table', class_='tEx') or soup.find('table')
         
         if table is None:
             st.error("순위 테이블을 찾을 수 없습니다.")
-            return None
+            return None, date_info
             
         rows = table.find_all('tr')
         data = []
@@ -386,18 +407,18 @@ def scrape_kbo_standings():
         
         if not data:
             st.error("팀 데이터를 찾을 수 없습니다.")
-            return None
+            return None, date_info
         
         columns = ['팀명', '경기', '승', '패', '무', '승률', '게임차', '최근10경기']
         df = pd.DataFrame(data, columns=columns)
         df = df.sort_values('승률', ascending=False).reset_index(drop=True)
         df.insert(0, '순위', range(1, len(df) + 1))
         
-        return df
+        return df, date_info
         
     except Exception as e:
         st.error(f"스크래핑 중 오류 발생: {e}")
-        return None
+        return None, None
 
 def monte_carlo_simulation(win_probability, remaining_games, num_simulations=10000):
     """몬테카를로 시뮬레이션을 통한 기대 승수 계산"""
@@ -508,11 +529,15 @@ def main():
         df_hitter_advanced = scrape_kbo_team_batting_stats_advanced()
         df_pitcher = scrape_kbo_team_pitching_stats()
         df_pitcher_advanced = scrape_kbo_team_pitching_stats_advanced()
-        df_standings = scrape_kbo_standings()
+        df_standings, date_info = scrape_kbo_standings()
     
     if df_hitter is None or df_hitter_advanced is None or df_pitcher is None or df_pitcher_advanced is None or df_standings is None:
         st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
         return
+    
+    # 기준 날짜 표시 (데이터 로딩 후)
+    if date_info:
+        st.markdown(f'<p style="text-align: center; font-size: 1rem; color: #666; margin-top: -1rem; margin-bottom: 2rem;">{date_info}</p>', unsafe_allow_html=True)
     
     # 타자 기록 결합 (팀명 기준)
     df_hitter_combined = pd.merge(df_hitter, df_hitter_advanced[['팀명', 'BB', 'IBB', 'HBP', 'SO', 'GDP', 'SLG', 'OBP', 'OPS', 'MH', 'RISP']], 
