@@ -1,0 +1,790 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import requests
+from bs4 import BeautifulSoup
+import random
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# 페이지 설정
+st.set_page_config(
+    page_title="KBO 팀 통계 분석기",
+    page_icon="⚾",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# CSS 스타일링
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+    }
+    .team-stats {
+        background-color: #ffffff;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+@st.cache_data(ttl=3600)  # 1시간마다 캐시 갱신
+def scrape_kbo_team_batting_stats():
+    """KBO 팀별 타자 기록 스크래핑"""
+    url = "https://www.koreabaseball.com/Record/Team/Hitter/Basic1.aspx"
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find('table', class_='tEx') or soup.find('table')
+        
+        if table is None:
+            st.error("타자 기록 테이블을 찾을 수 없습니다.")
+            return None
+            
+        rows = table.find_all('tr')
+        data = []
+        
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_text = [cell.get_text().strip() for cell in cells]
+            
+            for j, text in enumerate(row_text):
+                if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                    if len(row_text) >= 15:
+                        team_data = []
+                        team_data.append(text)
+                        
+                        for k in range(j+1, min(j+14, len(row_text))):
+                            try:
+                                val = row_text[k]
+                                if '.' in val and val.replace('.', '').replace('-', '').isdigit():
+                                    team_data.append(float(val))
+                                elif val.replace('-', '').isdigit():
+                                    team_data.append(int(val))
+                                else:
+                                    team_data.append(val)
+                            except:
+                                team_data.append(row_text[k])
+                        
+                        if len(team_data) == 14:
+                            data.append(team_data)
+                    break
+        
+        if not data:
+            st.error("팀 데이터를 찾을 수 없습니다.")
+            return None
+        
+        columns = ['팀명', 'AVG', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SAC', 'SF']
+        df = pd.DataFrame(data, columns=columns)
+        df = df.sort_values('AVG', ascending=False).reset_index(drop=True)
+        df.insert(0, '순위', range(1, len(df) + 1))
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"스크래핑 중 오류 발생: {e}")
+        return None
+
+@st.cache_data(ttl=3600)
+def scrape_kbo_team_batting_stats_advanced():
+    """KBO 팀별 타자 고급 기록 스크래핑 (출루율, 장타율, OPS 등)"""
+    url = "https://www.koreabaseball.com/Record/Team/Hitter/Basic2.aspx"
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find('table', class_='tEx') or soup.find('table')
+        
+        if table is None:
+            st.error("고급 타자 기록 테이블을 찾을 수 없습니다.")
+            return None
+            
+        rows = table.find_all('tr')
+        data = []
+        
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_text = [cell.get_text().strip() for cell in cells]
+            
+            # 팀명이 포함된 행인지 확인
+            team_found = False
+            for text in row_text:
+                if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                    team_found = True
+                    break
+            
+            if team_found and len(row_text) >= 12:  # 팀명 + 최소 11개 지표
+                team_data = []
+                # 팀명 찾기
+                for text in row_text:
+                    if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                        team_data.append(text)
+                        break
+                
+                # 나머지 데이터 추출 (AVG, BB, IBB, HBP, SO, GDP, SLG, OBP, OPS, MH, RISP)
+                data_started = False
+                for val in row_text:
+                    if data_started and len(team_data) < 12:  # 팀명 + 11개 지표
+                        try:
+                            if '.' in val and val.replace('.', '').replace('-', '').isdigit():
+                                team_data.append(float(val))
+                            elif val.replace('-', '').isdigit():
+                                team_data.append(int(val))
+                            else:
+                                team_data.append(val)
+                        except:
+                            team_data.append(val)
+                    elif val in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                        data_started = True
+                
+                if len(team_data) == 12:  # 팀명 + 11개 지표
+                    data.append(team_data)
+        
+        if not data:
+            st.error("팀 데이터를 찾을 수 없습니다.")
+            return None
+        
+        columns = ['팀명', 'AVG', 'BB', 'IBB', 'HBP', 'SO', 'GDP', 'SLG', 'OBP', 'OPS', 'MH', 'RISP']
+        df = pd.DataFrame(data, columns=columns)
+        df = df.sort_values('AVG', ascending=False).reset_index(drop=True)
+        df.insert(0, '순위', range(1, len(df) + 1))
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"스크래핑 중 오류 발생: {e}")
+        return None
+
+@st.cache_data(ttl=3600)
+def scrape_kbo_team_pitching_stats():
+    """KBO 팀별 투수 기록 스크래핑"""
+    url = "https://www.koreabaseball.com/Record/Team/Pitcher/Basic1.aspx"
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find('table', class_='tEx') or soup.find('table')
+        
+        if table is None:
+            st.error("투수 기록 테이블을 찾을 수 없습니다.")
+            return None
+            
+        rows = table.find_all('tr')
+        data = []
+        
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_text = [cell.get_text().strip() for cell in cells]
+            
+            for j, text in enumerate(row_text):
+                if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                    if len(row_text) >= 18:
+                        team_data = []
+                        team_data.append(text)
+                        
+                        for k in range(j+1, min(j+17, len(row_text))):
+                            try:
+                                val = row_text[k]
+                                if k == j+9:  # IP 컬럼
+                                    try:
+                                        if '/' in val:
+                                            parts = val.split()
+                                            if len(parts) == 2:
+                                                whole = float(parts[0])
+                                                frac_parts = parts[1].split('/')
+                                                fraction = float(frac_parts[0]) / float(frac_parts[1])
+                                                team_data.append(whole + fraction)
+                                            else:
+                                                team_data.append(float(val) if val.replace('.', '').replace('-', '').isdigit() else val)
+                                        else:
+                                            team_data.append(float(val) if val.replace('.', '').replace('-', '').isdigit() else val)
+                                    except:
+                                        team_data.append(val)  # 변환 실패시 원본 값 유지
+                                elif '.' in val and val.replace('.', '').replace('-', '').isdigit():
+                                    team_data.append(float(val))
+                                elif val.replace('-', '').isdigit():
+                                    team_data.append(int(val))
+                                else:
+                                    team_data.append(val)
+                            except:
+                                team_data.append(row_text[k])
+                        
+                        if len(team_data) == 17:
+                            data.append(team_data)
+                    break
+        
+        if not data:
+            st.error("팀 데이터를 찾을 수 없습니다.")
+            return None
+        
+        columns = ['팀명', 'ERA', 'G', 'W', 'L', 'SV', 'HLD', 'WPCT', 'IP', 'H', 'HR', 'BB', 'HBP', 'SO', 'R', 'ER', 'WHIP']
+        df = pd.DataFrame(data, columns=columns)
+        df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
+        df.insert(0, '순위', range(1, len(df) + 1))
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"스크래핑 중 오류 발생: {e}")
+        return None
+
+@st.cache_data(ttl=3600)
+def scrape_kbo_team_pitching_stats_advanced():
+    """KBO 팀별 투수 고급 기록 스크래핑 (완투, 완봉, 퀄리티스타트 등)"""
+    url = "https://www.koreabaseball.com/Record/Team/Pitcher/Basic2.aspx"
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find('table', class_='tEx') or soup.find('table')
+        
+        if table is None:
+            st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
+            return None
+            
+        rows = table.find_all('tr')
+        data = []
+        
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_text = [cell.get_text().strip() for cell in cells]
+            
+            # 팀명이 포함된 행인지 확인
+            team_found = False
+            for text in row_text:
+                if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                    team_found = True
+                    break
+            
+            if team_found and len(row_text) >= 16:  # 팀명 + 최소 15개 지표
+                team_data = []
+                # 팀명 찾기
+                for text in row_text:
+                    if text in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                        team_data.append(text)
+                        break
+                
+                # 나머지 데이터 추출 (ERA, CG, SHO, QS, BSV, TBF, NP, AVG, 2B, 3B, SAC, SF, IBB, WP, BK)
+                data_started = False
+                for val in row_text:
+                    if data_started and len(team_data) < 16:  # 팀명 + 15개 지표
+                        try:
+                            if '.' in val and val.replace('.', '').replace('-', '').isdigit():
+                                team_data.append(float(val))
+                            elif val.replace('-', '').isdigit():
+                                team_data.append(int(val))
+                            else:
+                                team_data.append(val)
+                        except:
+                            team_data.append(val)
+                    elif val in ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']:
+                        data_started = True
+                
+                if len(team_data) == 16:  # 팀명 + 15개 지표
+                    data.append(team_data)
+        
+        if not data:
+            st.error("팀 데이터를 찾을 수 없습니다.")
+            return None
+        
+        columns = ['팀명', 'ERA', 'CG', 'SHO', 'QS', 'BSV', 'TBF', 'NP', 'AVG', '2B', '3B', 'SAC', 'SF', 'IBB', 'WP', 'BK']
+        df = pd.DataFrame(data, columns=columns)
+        df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
+        df.insert(0, '순위', range(1, len(df) + 1))
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"스크래핑 중 오류 발생: {e}")
+        return None
+
+@st.cache_data(ttl=3600)
+def scrape_kbo_standings():
+    """KBO 팀 순위 스크래핑"""
+    url = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find('table', class_='tEx') or soup.find('table')
+        
+        if table is None:
+            st.error("순위 테이블을 찾을 수 없습니다.")
+            return None
+            
+        rows = table.find_all('tr')
+        data = []
+        
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            row_text = [cell.get_text().strip() for cell in cells]
+            
+            for j, text in enumerate(row_text):
+                if text in ['LG', '한화', '롯데', '삼성', 'SSG', 'NC', 'KIA', '두산', 'KT', '키움']:
+                    if len(row_text) >= 10:
+                        team_data = []
+                        team_data.append(text)
+                        
+                        for k in range(j+1, min(j+8, len(row_text))):
+                            try:
+                                val = row_text[k]
+                                if '.' in val and val.replace('.', '').replace('-', '').isdigit():
+                                    team_data.append(float(val))
+                                elif val.replace('-', '').isdigit():
+                                    team_data.append(int(val))
+                                else:
+                                    team_data.append(val)
+                            except:
+                                team_data.append(row_text[k])
+                        
+                        if len(team_data) == 8:
+                            data.append(team_data)
+                    break
+        
+        if not data:
+            st.error("팀 데이터를 찾을 수 없습니다.")
+            return None
+        
+        columns = ['팀명', '경기', '승', '패', '무', '승률', '게임차', '최근10경기']
+        df = pd.DataFrame(data, columns=columns)
+        df = df.sort_values('승률', ascending=False).reset_index(drop=True)
+        df.insert(0, '순위', range(1, len(df) + 1))
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"스크래핑 중 오류 발생: {e}")
+        return None
+
+def monte_carlo_simulation(win_probability, remaining_games, num_simulations=10000):
+    """몬테카를로 시뮬레이션을 통한 기대 승수 계산"""
+    total_wins = 0
+    
+    for _ in range(num_simulations):
+        wins = 0
+        for _ in range(remaining_games):
+            if random.random() < win_probability:
+                wins += 1
+        total_wins += wins
+    
+    return total_wins / num_simulations
+
+def calculate_championship_probability(teams_data, num_simulations=100000):
+    """각 팀의 우승 확률을 계산하는 함수"""
+    championship_wins = {team: 0 for team in teams_data['팀명']}
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for simulation in range(num_simulations):
+        if simulation % 10000 == 0:
+            progress = simulation / num_simulations
+            progress_bar.progress(progress)
+            status_text.text(f"우승 확률 계산 중... {simulation:,}/{num_simulations:,} ({progress:.1%})")
+        
+        final_wins = {}
+        
+        for _, team in teams_data.iterrows():
+            team_name = team['팀명']
+            current_wins = team['승']
+            pythagorean_wpct = team['p_wpct']
+            remaining_games = team['잔여경기']
+            
+            simulated_wins = 0
+            for _ in range(remaining_games):
+                if random.random() < pythagorean_wpct:
+                    simulated_wins += 1
+            
+            final_wins[team_name] = current_wins + simulated_wins
+        
+        champion = max(final_wins, key=final_wins.get)
+        championship_wins[champion] += 1
+    
+    progress_bar.progress(1.0)
+    status_text.text("우승 확률 계산 완료!")
+    
+    championship_probabilities = {}
+    for team, wins in championship_wins.items():
+        championship_probabilities[team] = (wins / num_simulations) * 100
+    
+    return championship_probabilities
+
+def calculate_playoff_probability(teams_data, num_simulations=50000):
+    """플레이오프 진출 확률 계산 (상위 5팀)"""
+    playoff_wins = {team: 0 for team in teams_data['팀명']}
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for simulation in range(num_simulations):
+        if simulation % 10000 == 0:
+            progress = simulation / num_simulations
+            progress_bar.progress(progress)
+            status_text.text(f"플레이오프 확률 계산 중... {simulation:,}/{num_simulations:,} ({progress:.1%})")
+        
+        final_wins = {}
+        
+        for _, team in teams_data.iterrows():
+            team_name = team['팀명']
+            current_wins = team['승']
+            pythagorean_wpct = team['p_wpct']
+            remaining_games = team['잔여경기']
+            
+            simulated_wins = 0
+            for _ in range(remaining_games):
+                if random.random() < pythagorean_wpct:
+                    simulated_wins += 1
+            
+            final_wins[team_name] = current_wins + simulated_wins
+        
+        sorted_teams = sorted(final_wins.items(), key=lambda x: x[1], reverse=True)
+        playoff_teams = [team[0] for team in sorted_teams[:5]]
+        
+        for team in playoff_teams:
+            playoff_wins[team] += 1
+    
+    progress_bar.progress(1.0)
+    status_text.text("플레이오프 확률 계산 완료!")
+    
+    playoff_probabilities = {}
+    for team, wins in playoff_wins.items():
+        playoff_probabilities[team] = (wins / num_simulations) * 100
+    
+    return playoff_probabilities
+
+def main():
+    # 헤더
+    st.markdown('<h1 class="main-header">⚾ KBO 팀 통계 분석기</h1>', unsafe_allow_html=True)
+    
+    # 사이드바
+    # st.sidebar.title("📊 분석 옵션")
+    
+    # 데이터 로딩
+    with st.spinner("실시간 KBO 데이터를 가져오는 중..."):
+        df_hitter = scrape_kbo_team_batting_stats()
+        df_hitter_advanced = scrape_kbo_team_batting_stats_advanced()
+        df_pitcher = scrape_kbo_team_pitching_stats()
+        df_pitcher_advanced = scrape_kbo_team_pitching_stats_advanced()
+        df_standings = scrape_kbo_standings()
+    
+    if df_hitter is None or df_hitter_advanced is None or df_pitcher is None or df_pitcher_advanced is None or df_standings is None:
+        st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
+        return
+    
+    # 타자 기록 결합 (팀명 기준)
+    df_hitter_combined = pd.merge(df_hitter, df_hitter_advanced[['팀명', 'BB', 'IBB', 'HBP', 'SO', 'GDP', 'SLG', 'OBP', 'OPS', 'MH', 'RISP']], 
+                                 on='팀명', how='left')
+    
+    # 투수 기록 결합 (팀명 기준)
+    df_pitcher_combined = pd.merge(df_pitcher, df_pitcher_advanced[['팀명', 'CG', 'SHO', 'QS', 'BSV', 'TBF', 'NP', 'AVG', '2B', '3B', 'SAC', 'SF', 'IBB', 'WP', 'BK']], 
+                                  on='팀명', how='left')
+    
+    # 탭 생성
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승 확률"])
+    
+    with tab1:
+        st.header("📈 현재 순위")
+        # 현재 순위 표시
+        # st.subheader("현재 순위")
+        # st.dataframe(df_standings, use_container_width=True, hide_index=True)
+        
+        # with col2:
+        #     st.subheader("승률 분포")
+        #     # 승률 기준으로 정렬된 데이터프레임 생성
+        #     df_sorted = df_standings.sort_values('승률', ascending=False)
+        #     # st.write(df_sorted)
+        #     fig = px.bar(df_sorted, y='팀명', x='승률', 
+        #                 # title="팀별 승률",
+        #                 color='승률',
+        #                 color_continuous_scale='RdYlGn',
+        #                 orientation='h')
+        #     fig.update_layout(xaxis_tickangle=0, showlegend=False)
+        #     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        #     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        #     st.plotly_chart(fig, use_container_width=True)
+    
+    with tab2:
+        st.header("🏟️ 팀별 기록")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("타자 기록")
+            st.dataframe(df_hitter_combined, use_container_width=True, hide_index=True)
+        
+        with col2:
+            st.subheader("투수 기록")
+            st.dataframe(df_pitcher_combined, use_container_width=True, hide_index=True)
+        
+        # Top 3 팀들을 2열로 배치
+        st.subheader("🏆 TOP 3 팀")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("타격 상위 3팀")
+            # 타율 상위 3팀
+            top3_avg = df_hitter_combined.nlargest(3, 'AVG')[['팀명', 'AVG']]
+            st.write("**타율 상위 3팀**")
+            col1_1, col1_2, col1_3 = st.columns(3)
+            for i, (idx, row) in enumerate(top3_avg.iterrows()):
+                if i == 0:
+                    with col1_1:
+                        st.metric(f"1위 {row['팀명']}", f"{row['AVG']:.3f}")
+                elif i == 1:
+                    with col1_2:
+                        st.metric(f"2위 {row['팀명']}", f"{row['AVG']:.3f}")
+                else:
+                    with col1_3:
+                        st.metric(f"3위 {row['팀명']}", f"{row['AVG']:.3f}")
+            
+            # OPS 상위 3팀
+            top3_ops = df_hitter_combined.nlargest(3, 'OPS')[['팀명', 'OPS']]
+            st.write("**OPS 상위 3팀**")
+            col1_4, col1_5, col1_6 = st.columns(3)
+            for i, (idx, row) in enumerate(top3_ops.iterrows()):
+                if i == 0:
+                    with col1_4:
+                        st.metric(f"1위 {row['팀명']}", f"{row['OPS']:.3f}")
+                elif i == 1:
+                    with col1_5:
+                        st.metric(f"2위 {row['팀명']}", f"{row['OPS']:.3f}")
+                else:
+                    with col1_6:
+                        st.metric(f"3위 {row['팀명']}", f"{row['OPS']:.3f}")
+        
+        with col2:
+            st.subheader("투수 상위 3팀")
+            # ERA 상위 3팀
+            top3_era = df_pitcher_combined.nsmallest(3, 'ERA')[['팀명', 'ERA']]
+            st.write("**ERA 상위 3팀 (낮은 순)**")
+            col2_1, col2_2, col2_3 = st.columns(3)
+            for i, (idx, row) in enumerate(top3_era.iterrows()):
+                if i == 0:
+                    with col2_1:
+                        st.metric(f"1위 {row['팀명']}", f"{row['ERA']:.2f}")
+                elif i == 1:
+                    with col2_2:
+                        st.metric(f"2위 {row['팀명']}", f"{row['ERA']:.2f}")
+                else:
+                    with col2_3:
+                        st.metric(f"3위 {row['팀명']}", f"{row['ERA']:.2f}")
+            
+            # WHIP 상위 3팀
+            top3_whip = df_pitcher_combined.nsmallest(3, 'WHIP')[['팀명', 'WHIP']]
+            st.write("**WHIP 상위 3팀 (낮은 순)**")
+            col2_4, col2_5, col2_6 = st.columns(3)
+            for i, (idx, row) in enumerate(top3_whip.iterrows()):
+                if i == 0:
+                    with col2_4:
+                        st.metric(f"1위 {row['팀명']}", f"{row['WHIP']:.2f}")
+                elif i == 1:
+                    with col2_5:
+                        st.metric(f"2위 {row['팀명']}", f"{row['WHIP']:.2f}")
+                else:
+                    with col2_6:
+                        st.metric(f"3위 {row['팀명']}", f"{row['WHIP']:.2f}")
+    
+    with tab1:
+        # st.header("📈 현재 순위")
+        
+        # 백그라운드에서 피타고리안 승률 계산 및 기본 시뮬레이션 실행
+        df_runs = pd.merge(df_hitter[['팀명', 'R']], df_pitcher[['팀명', 'R']], on='팀명', how='left')
+        df_runs.rename(columns={'R_x': 'R', 'R_y': 'RA'}, inplace=True)
+        
+        p_n = 1.834
+        df_runs['p_wpct'] = df_runs['R']**p_n / (df_runs['R']**p_n + df_runs['RA']**p_n)
+        df_runs['p_wpct'] = df_runs['p_wpct'].round(4)
+        
+        df_final = pd.merge(df_standings, df_runs, on='팀명', how='left')
+        df_final['잔여경기'] = 144 - df_final['경기']
+        
+        # 기본 시뮬레이션 실행 (백그라운드)
+        np.random.seed(42)
+        random.seed(42)
+        
+        simulation_results = []
+        for _, row in df_final.iterrows():
+            team_name = row['팀명']
+            current_wins = row['승']
+            win_rate = row['승률']
+            pythagorean_wpct = row['p_wpct']
+            remaining_games = row['잔여경기']
+            
+            expected_wins_winrate = monte_carlo_simulation(win_rate, remaining_games, 10000)
+            expected_wins_pythagorean = monte_carlo_simulation(pythagorean_wpct, remaining_games, 10000)
+            
+            final_expected_wins_winrate = current_wins + expected_wins_winrate
+            final_expected_wins_pythagorean = current_wins + expected_wins_pythagorean
+            
+            simulation_results.append({
+                '팀명': team_name,
+                '현재승수': current_wins,
+                '잔여경기': remaining_games,
+                '승률': win_rate,
+                'p_wpct': pythagorean_wpct,
+                '기대승수_승률기반': expected_wins_winrate,
+                '기대승수_피타고리안기반': expected_wins_pythagorean,
+                '최종기대승수_승률기반': final_expected_wins_winrate,
+                '최종기대승수_피타고리안기반': final_expected_wins_pythagorean
+            })
+        
+        results_df = pd.DataFrame(simulation_results)
+        df_final = df_final.merge(results_df[['팀명', '기대승수_승률기반', '기대승수_피타고리안기반', 
+                                            '최종기대승수_승률기반', '최종기대승수_피타고리안기반']], 
+                                on='팀명', how='left')
+        
+        # df_final을 전역 변수로 저장
+        st.session_state['df_final'] = df_final
+        
+        # 현재 순위와 예측 분석 표시
+        st.subheader("📊 현재 순위 및 예측 분석")
+        
+        # 피타고리안 승률과 최종 기대승수가 포함된 데이터프레임 생성
+        df_display = df_final[['순위', '팀명', '경기', '승', '패', '무', '승률', '게임차', '최근10경기',
+                              'p_wpct', '최종기대승수_피타고리안기반']].copy()
+        df_display['p_wpct'] = df_display['p_wpct'].round(4)
+        df_display['최종기대승수_피타고리안기반'] = df_display['최종기대승수_피타고리안기반'].round(1)
+        df_display.rename(columns={'p_wpct': '피타고리안승률', '최종기대승수_피타고리안기반': '예상최종승수'}, inplace=True)
+        
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    with tab3:
+        st.header("📊 시각화")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # 타율 vs 홈런
+            fig1 = px.scatter(df_hitter_combined, x='AVG', y='HR', 
+                             title="타율 vs 홈런",
+                             hover_data=['팀명'],
+                             text='팀명')
+            fig1.update_traces(textposition="top center", marker_size=12)
+            fig1.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig1.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            st.plotly_chart(fig1, use_container_width=True)
+        
+        with col2:
+            # ERA vs 삼진
+            fig2 = px.scatter(df_pitcher_combined, x='ERA', y='SO', 
+                             title="ERA vs 삼진",
+                             hover_data=['팀명'],
+                             text='팀명')
+            fig2.update_traces(textposition="top center", marker_size=12)
+            fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        # 승률 vs 피타고리안 승률 비교
+        df_final = st.session_state['df_final']
+        fig3 = px.scatter(df_final, x='승률', y='p_wpct', 
+                         title="실제 승률 vs 피타고리안 승률",
+                         hover_data=['팀명'],
+                         text='팀명')
+        fig3.add_trace(go.Scatter(x=[0.250, 0.650], y=[0.250, 0.650], mode='lines', 
+                                 name='기준선', line=dict(dash='dash', color='red')))
+        fig3.update_traces(textposition="top center", marker_size=12)
+        fig3.update_xaxes(range=[0.250, 0.650], showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig3.update_yaxes(range=[0.250, 0.650], showgrid=True, gridwidth=1, gridcolor='lightgray')
+        st.plotly_chart(fig3, use_container_width=True)
+    
+    with tab4:
+        st.header("🏆 우승 확률")
+        
+        df_final = st.session_state['df_final']
+        st.subheader("우승 확률 계산")
+        
+        # 시뮬레이션 횟수 설정
+        col1, col2 = st.columns(2)
+        with col1:
+            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10000, 100000, 10000, step=10000)
+        with col2:
+            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5000, 50000, 5000, step=5000)
+        
+        if st.button("시뮬레이선 시작"):
+            with st.spinner("우승 확률과 플레이오프 확률을 계산하는 중..."):
+                # 우승 확률 계산
+                championship_probs = calculate_championship_probability(df_final, championship_simulations)
+                df_final['우승확률_퍼센트'] = df_final['팀명'].map(championship_probs)
+                
+                # 플레이오프 확률 계산
+                playoff_probs = calculate_playoff_probability(df_final, playoff_simulations)
+                df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(playoff_probs)
+                
+                # 최종기대승수_피타고리안기반 컬럼이 없으면 승수로 대체
+                display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
+                
+                # 우승 확률 결과
+                championship_df = df_final[['순위', '팀명', display_col, '우승확률_퍼센트']].copy()
+                championship_df = championship_df.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
+                
+                st.subheader("🏆 KBO 우승 확률 (피타고리안 승률 기반)")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.dataframe(championship_df, use_container_width=True, hide_index=True)
+                
+                with col2:
+                    # 우승 확률 시각화
+                    fig = px.bar(championship_df, x='팀명', y='우승확률_퍼센트',
+                                title="팀별 우승 확률",
+                                color='우승확률_퍼센트',
+                                color_continuous_scale='RdYlGn')
+                    fig.update_layout(xaxis_tickangle=-45)
+                    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # 플레이오프 진출 확률 결과
+                playoff_df = df_final[['팀명', display_col, '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
+                playoff_df = playoff_df.sort_values('플레이오프진출확률_퍼센트', ascending=False).reset_index(drop=True)
+                
+                st.subheader("🎯 플레이오프 진출 확률")
+                st.dataframe(playoff_df, use_container_width=True, hide_index=True)
+
+if __name__ == "__main__":
+    main() 
