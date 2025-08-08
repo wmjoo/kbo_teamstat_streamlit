@@ -37,6 +37,21 @@ def get_gsheet_client():
         # 에러를 표시하지 않고 조용히 None 반환
         return None
 
+def safe_dataframe_display(df, use_container_width=True, hide_index=True):
+    """데이터프레임을 안전하게 표시하는 함수"""
+    try:
+        # 모든 컬럼을 문자열로 변환하여 Arrow 호환성 문제 방지
+        df_display = df.copy()
+        for col in df_display.columns:
+            df_display[col] = df_display[col].astype(str)
+        
+        st.dataframe(df_display, use_container_width=use_container_width, hide_index=hide_index)
+    except Exception as e:
+        st.error(f"데이터프레임 표시 중 오류 발생: {e}")
+        # 오류 발생 시 원본 데이터프레임을 문자열로 변환하여 표시
+        st.write("데이터 표시에 문제가 있어 원본 형태로 표시합니다:")
+        st.write(df)
+
 
 def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
     try:
@@ -277,13 +292,13 @@ def scrape_kbo_team_pitching_stats():
                                                 whole = float(parts[0])
                                                 frac_parts = parts[1].split('/')
                                                 fraction = float(frac_parts[0]) / float(frac_parts[1])
-                                                team_data.append(whole + fraction)
+                                                team_data.append(str(whole + fraction))  # 문자열로 변환
                                             else:
-                                                team_data.append(float(val) if val.replace('.', '').replace('-', '').isdigit() else val)
+                                                team_data.append(str(float(val)) if val.replace('.', '').replace('-', '').isdigit() else val)
                                         else:
-                                            team_data.append(float(val) if val.replace('.', '').replace('-', '').isdigit() else val)
+                                            team_data.append(str(float(val)) if val.replace('.', '').replace('-', '').isdigit() else val)
                                     except:
-                                        team_data.append(val)  # 변환 실패시 원본 값 유지
+                                        team_data.append(str(val))  # 문자열로 변환
                                 elif '.' in val and val.replace('.', '').replace('-', '').isdigit():
                                     team_data.append(float(val))
                                 elif val.replace('-', '').isdigit():
@@ -303,6 +318,10 @@ def scrape_kbo_team_pitching_stats():
         
         columns = ['팀명', 'ERA', 'G', 'W', 'L', 'SV', 'HLD', 'WPCT', 'IP', 'H', 'HR', 'BB', 'HBP', 'SO', 'R', 'ER', 'WHIP']
         df = pd.DataFrame(data, columns=columns)
+        
+        # IP 컬럼을 문자열로 확실히 변환
+        df['IP'] = df['IP'].astype(str)
+        
         df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
         df.insert(0, '순위', range(1, len(df) + 1))
         
@@ -634,11 +653,11 @@ def main():
         
         with col1:
             st.subheader("타자 기록")
-            st.dataframe(df_hitter_combined, use_container_width=True, hide_index=True)
+            safe_dataframe_display(df_hitter_combined, use_container_width=True, hide_index=True)
         
         with col2:
             st.subheader("투수 기록")
-            st.dataframe(df_pitcher_combined, use_container_width=True, hide_index=True)
+            safe_dataframe_display(df_pitcher_combined, use_container_width=True, hide_index=True)
         
         # Top 3 팀들을 2열로 배치
         st.subheader("🏆 TOP 3 팀")
@@ -770,7 +789,7 @@ def main():
         df_display['최종기대승수_피타고리안기반'] = df_display['최종기대승수_피타고리안기반'].round(1)
         df_display.rename(columns={'p_wpct': '피타고리안승률', '최종기대승수_피타고리안기반': '예상최종승수'}, inplace=True)
         
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        safe_dataframe_display(df_display, use_container_width=True, hide_index=True)
     
     with tab3:
         st.header("📊 시각화")
@@ -852,7 +871,7 @@ def main():
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.dataframe(combined_df, use_container_width=True, hide_index=True)
+                    safe_dataframe_display(combined_df, use_container_width=True, hide_index=True)
                 
                 with col2:
                     # 우승 확률 시각화
