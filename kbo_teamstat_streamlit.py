@@ -9,12 +9,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 def get_gsheet_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(gcp_dict, scope)
+    credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
     return gspread.authorize(credentials)
 
 
