@@ -841,7 +841,7 @@ def main():
                     st.plotly_chart(fig, use_container_width=True)
                 
                 # 플레이오프 진출 확률 결과
-                playoff_df = df_final[['팀명', display_col, '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
+                playoff_df = df_final[['팀명', display_col, '플레이오프진출확률_퍼센트']].copy()
                 playoff_df = playoff_df.sort_values('플레이오프진출확률_퍼센트', ascending=False).reset_index(drop=True)
                 
                 st.subheader("🎯 플레이오프 진출 확률")
