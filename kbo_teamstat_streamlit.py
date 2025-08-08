@@ -830,7 +830,7 @@ def main():
 
                 # Google Sheets에 저장 시도
                 log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
-                append_simulation_to_sheet(log_df, sheet_name)
+                append_simulation_to_sheet(log_df)
                 
                 # 최종기대승수_피타고리안기반 컬럼이 없으면 승수로 대체
                 display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
