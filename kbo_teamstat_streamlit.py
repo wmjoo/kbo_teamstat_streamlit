@@ -818,20 +818,8 @@ def main():
         with col2:
             playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5000, 50000, 5000, step=5000)
         
-        if st.button("시뮬레이선 시작"):
-        # if st.button("시뮬레이선 시작"):
+        if st.button("시뮬레이션 시작"):
             with st.spinner("우승 확률과 플레이오프 확률을 계산하는 중..."):
-                # 기존 확률 계산 부분
-                championship_probs = calculate_championship_probability(df_final, championship_simulations)
-                df_final['우승확률_퍼센트'] = df_final['팀명'].map(championship_probs)
-                
-                playoff_probs = calculate_playoff_probability(df_final, playoff_simulations)
-                df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(playoff_probs)
-
-                # ✅ 여기에 추가 ↓
-                log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
-                append_simulation_to_sheet(log_df, 'ChampionshipSimulation')
-
                 # 우승 확률 계산
                 championship_probs = calculate_championship_probability(df_final, championship_simulations)
                 df_final['우승확률_퍼센트'] = df_final['팀명'].map(championship_probs)
@@ -839,24 +827,29 @@ def main():
                 # 플레이오프 확률 계산
                 playoff_probs = calculate_playoff_probability(df_final, playoff_simulations)
                 df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(playoff_probs)
+
+                # Google Sheets에 저장 시도
+                log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
+                append_simulation_to_sheet(log_df, sheet_name)
                 
                 # 최종기대승수_피타고리안기반 컬럼이 없으면 승수로 대체
                 display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
                 
-                # 우승 확률 결과
-                championship_df = df_final[['순위', '팀명', display_col, '우승확률_퍼센트']].copy()
-                championship_df = championship_df.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
+                # 통합 결과 테이블 생성
+                combined_df = df_final[['순위', '팀명', display_col, '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
+                combined_df = combined_df.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
+                combined_df.rename(columns={display_col: '예상최종승수'}, inplace=True)
                 
-                st.subheader("🏆 KBO 우승 확률 (피타고리안 승률 기반)")
+                st.subheader("🏆 KBO 우승 확률 & 🎯 플레이오프 진출 확률")
                 
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.dataframe(championship_df, use_container_width=True, hide_index=True)
+                    st.dataframe(combined_df, use_container_width=True, hide_index=True)
                 
                 with col2:
                     # 우승 확률 시각화
-                    fig = px.bar(championship_df, x='팀명', y='우승확률_퍼센트',
+                    fig = px.bar(combined_df, x='팀명', y='우승확률_퍼센트',
                                 title="팀별 우승 확률",
                                 color='우승확률_퍼센트',
                                 color_continuous_scale='RdYlGn')
@@ -865,12 +858,15 @@ def main():
                     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # 플레이오프 진출 확률 결과
-                playoff_df = df_final[['팀명', display_col, '플레이오프진출확률_퍼센트']].copy()
-                playoff_df = playoff_df.sort_values('플레이오프진출확률_퍼센트', ascending=False).reset_index(drop=True)
-                
-                st.subheader("🎯 플레이오프 진출 확률")
-                st.dataframe(playoff_df, use_container_width=True, hide_index=True)
+                # 플레이오프 확률 시각화
+                fig2 = px.bar(combined_df, x='팀명', y='플레이오프진출확률_퍼센트',
+                             title="팀별 플레이오프 진출 확률",
+                             color='플레이오프진출확률_퍼센트',
+                             color_continuous_scale='Blues')
+                fig2.update_layout(xaxis_tickangle=-45)
+                fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                st.plotly_chart(fig2, use_container_width=True)
 
     with tab5:
         st.header("📅 시뮬레이션 이력")
