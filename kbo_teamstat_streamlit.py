@@ -12,25 +12,47 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 def get_gsheet_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
-    credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
-    return gspread.authorize(credentials)
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
+        
+        # private_key가 문자열인지 확인하고 필요시 처리
+        if 'private_key' in gcp_dict:
+            private_key = gcp_dict['private_key']
+            if isinstance(private_key, str):
+                # 개행 문자 처리
+                private_key = private_key.replace('\\n', '\n')
+                gcp_dict['private_key'] = private_key
+        
+        credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
+        return gspread.authorize(credentials)
+    except Exception as e:
+        st.error(f"Google Sheets 연결 실패: {e}")
+        return None
 
 
 def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
-    client = get_gsheet_client()
-    sh = client.open("KBO_Simulation_Log")  # 구글 시트 이름
     try:
-        worksheet = sh.worksheet(sheet_name)
-    except:
-        worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
+        client = get_gsheet_client()
+        if client is None:
+            st.warning("Google Sheets 연결이 실패했습니다. 시뮬레이션 결과가 저장되지 않습니다.")
+            return
+            
+        sh = client.open("KBO_Simulation_Log")  # 구글 시트 이름
+        try:
+            worksheet = sh.worksheet(sheet_name)
+        except:
+            worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    df_result = df_result.copy()
-    df_result.insert(0, "timestamp", timestamp)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        df_result = df_result.copy()
+        df_result.insert(0, "timestamp", timestamp)
 
-    worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
+        worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
+        st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
+    except Exception as e:
+        st.error(f"시뮬레이션 결과 저장 실패: {e}")
+        st.warning("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 결과가 저장되지 않습니다.")
 
 # 페이지 설정
 st.set_page_config(
@@ -853,22 +875,32 @@ def main():
     with tab5:
         st.header("📅 시뮬레이션 이력")
     # with st.expander("📅 시뮬레이션 이력 분석"):
-        client = get_gsheet_client()
-        worksheet = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
-        history = worksheet.get_all_records()
-        df_history = pd.DataFrame(history)
+        try:
+            client = get_gsheet_client()
+            if client is None:
+                st.warning("Google Sheets 연결이 실패했습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+            else:
+                worksheet = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
+                history = worksheet.get_all_records()
+                df_history = pd.DataFrame(history)
 
-        df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
+                if not df_history.empty:
+                    df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
 
-        df_summary = df_history.groupby(['timestamp']).agg({
-            '우승확률_퍼센트': 'mean',
-            '플레이오프진출확률_퍼센트': 'mean'
-        }).reset_index()
+                    df_summary = df_history.groupby(['timestamp']).agg({
+                        '우승확률_퍼센트': 'mean',
+                        '플레이오프진출확률_퍼센트': 'mean'
+                    }).reset_index()
 
-        fig = px.line(df_summary, x='timestamp', y=['우승확률_퍼센트', '플레이오프진출확률_퍼센트'],
-                      title='일자별 평균 우승 / 플레이오프 확률', markers=True)
-        fig.update_layout(xaxis_title="날짜", yaxis_title="확률(%)")
-        st.plotly_chart(fig, use_container_width=True)
+                    fig = px.line(df_summary, x='timestamp', y=['우승확률_퍼센트', '플레이오프진출확률_퍼센트'],
+                                  title='일자별 평균 우승 / 플레이오프 확률', markers=True)
+                    fig.update_layout(xaxis_title="날짜", yaxis_title="확률(%)")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("아직 시뮬레이션 이력이 없습니다. 우승 확률 탭에서 시뮬레이션을 실행해보세요.")
+        except Exception as e:
+            st.error(f"시뮬레이션 이력 불러오기 실패: {e}")
+            st.warning("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
 
 
 if __name__ == "__main__":
