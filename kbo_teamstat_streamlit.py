@@ -22,12 +22,19 @@ def get_gsheet_client():
             if isinstance(private_key, str):
                 # 개행 문자 처리
                 private_key = private_key.replace('\\n', '\n')
+                # 추가적인 개행 문자 처리
+                private_key = private_key.replace('\\r\\n', '\n')
+                private_key = private_key.replace('\\r', '\n')
+                # PEM 형식 확인 및 수정
+                if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
+                    st.warning("private_key 형식이 올바르지 않습니다.")
+                    return None
                 gcp_dict['private_key'] = private_key
         
         credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
         return gspread.authorize(credentials)
     except Exception as e:
-        st.error(f"Google Sheets 연결 실패: {e}")
+        # 에러를 표시하지 않고 조용히 None 반환
         return None
 
 
@@ -35,7 +42,7 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
     try:
         client = get_gsheet_client()
         if client is None:
-            st.warning("Google Sheets 연결이 실패했습니다. 시뮬레이션 결과가 저장되지 않습니다.")
+            # 조용히 실패 처리 (사용자에게 경고 메시지 표시하지 않음)
             return
             
         sh = client.open("KBO_Simulation_Log")  # 구글 시트 이름
@@ -51,8 +58,8 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
         worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
         st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
     except Exception as e:
-        st.error(f"시뮬레이션 결과 저장 실패: {e}")
-        st.warning("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 결과가 저장되지 않습니다.")
+        # 조용히 실패 처리 (사용자에게 경고 메시지 표시하지 않음)
+        pass
 
 # 페이지 설정
 st.set_page_config(
@@ -814,7 +821,7 @@ def main():
         # 시뮬레이션 횟수 설정
         col1, col2 = st.columns(2)
         with col1:
-            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10000, 100000, 10000, step=10000)
+            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 5000, 50000, 5000, step=5000)
         with col2:
             playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5000, 50000, 5000, step=5000)
         
@@ -830,7 +837,7 @@ def main():
 
                 # Google Sheets에 저장 시도
                 log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
-                append_simulation_to_sheet(log_df)
+                append_simulation_to_sheet(log_df, "SimulationLog")
                 
                 # 최종기대승수_피타고리안기반 컬럼이 없으면 승수로 대체
                 display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
@@ -874,7 +881,7 @@ def main():
         try:
             client = get_gsheet_client()
             if client is None:
-                st.warning("Google Sheets 연결이 실패했습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+                st.info("Google Sheets 연결이 설정되지 않았습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
             else:
                 worksheet = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
                 history = worksheet.get_all_records()
@@ -895,8 +902,9 @@ def main():
                 else:
                     st.info("아직 시뮬레이션 이력이 없습니다. 우승 확률 탭에서 시뮬레이션을 실행해보세요.")
         except Exception as e:
-            st.error(f"시뮬레이션 이력 불러오기 실패: {e}")
-            st.warning("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+            st.info("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+            # Google Sheets 연결 실패 시에도 앱이 계속 작동하도록 함
+            pass
 
 
 if __name__ == "__main__":
