@@ -544,11 +544,11 @@ def main():
     # 헤더
     st.markdown('<h1 class="main-header">⚾ KBO 팀 통계 분석기</h1>', unsafe_allow_html=True)
     
-    # 사이드바
-    st.sidebar.title("📊 분석 옵션")
+    # # 사이드바
+    # st.sidebar.title("📊 분석 옵션")
     
-    # 구글 시트 저장 옵션
-    sheet_name = st.sidebar.text_input("구글 시트 저장 시트명", value="ChampionshipSimulation")
+    # # 구글 시트 저장 옵션
+    # sheet_name = st.sidebar.text_input("구글 시트 저장 시트명", value="ChampionshipSimulation")
     
     # 데이터 로딩
     with st.spinner("실시간 KBO 데이터를 가져오는 중..."):
@@ -808,7 +808,7 @@ def main():
 
                 # ✅ 여기에 추가 ↓
                 log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
-                append_simulation_to_sheet(log_df, sheet_name)
+                append_simulation_to_sheet(log_df, 'ChampionshipSimulation')
 
                 # 우승 확률 계산
                 championship_probs = calculate_championship_probability(df_final, championship_simulations)
