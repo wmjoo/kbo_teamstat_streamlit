@@ -1,0 +1,13 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environments
+.env/
+.venv/
