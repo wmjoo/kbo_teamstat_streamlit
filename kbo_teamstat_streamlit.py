@@ -7,6 +7,30 @@ import random
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime
+
+# 📌 추가할 위치 여기에 ↓
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+def get_gsheet_client():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("your_gcp_service_account.json", scope)
+    return gspread.authorize(creds)
+
+def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
+    client = get_gsheet_client()
+    sh = client.open("KBO_Simulation_Log")  # 구글 시트 이름
+    try:
+        worksheet = sh.worksheet(sheet_name)
+    except:
+        worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    df_result = df_result.copy()
+    df_result.insert(0, "timestamp", timestamp)
+
+    worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
 
 # 페이지 설정
 st.set_page_config(
@@ -548,7 +572,7 @@ def main():
                                   on='팀명', how='left')
     
     # 탭 생성
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승 확률"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승 확률", "📅 시뮬레이션 이력"])
     
     with tab1:
         st.header("📈 현재 순위")
@@ -770,7 +794,19 @@ def main():
             playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5000, 50000, 5000, step=5000)
         
         if st.button("시뮬레이선 시작"):
+        # if st.button("시뮬레이선 시작"):
             with st.spinner("우승 확률과 플레이오프 확률을 계산하는 중..."):
+                # 기존 확률 계산 부분
+                championship_probs = calculate_championship_probability(df_final, championship_simulations)
+                df_final['우승확률_퍼센트'] = df_final['팀명'].map(championship_probs)
+                
+                playoff_probs = calculate_playoff_probability(df_final, playoff_simulations)
+                df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(playoff_probs)
+
+                # ✅ 여기에 추가 ↓
+                log_df = df_final[['팀명', '우승확률_퍼센트', '플레이오프진출확률_퍼센트']].copy()
+                append_simulation_to_sheet(log_df)
+
                 # 우승 확률 계산
                 championship_probs = calculate_championship_probability(df_final, championship_simulations)
                 df_final['우승확률_퍼센트'] = df_final['팀명'].map(championship_probs)
@@ -810,6 +846,27 @@ def main():
                 
                 st.subheader("🎯 플레이오프 진출 확률")
                 st.dataframe(playoff_df, use_container_width=True, hide_index=True)
+
+    with tab5:
+        st.header("📅 시뮬레이션 이력")
+    # with st.expander("📅 시뮬레이션 이력 분석"):
+        client = get_gsheet_client()
+        worksheet = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
+        history = worksheet.get_all_records()
+        df_history = pd.DataFrame(history)
+
+        df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
+
+        df_summary = df_history.groupby(['timestamp']).agg({
+            '우승확률_퍼센트': 'mean',
+            '플레이오프진출확률_퍼센트': 'mean'
+        }).reset_index()
+
+        fig = px.line(df_summary, x='timestamp', y=['우승확률_퍼센트', '플레이오프진출확률_퍼센트'],
+                      title='일자별 평균 우승 / 플레이오프 확률', markers=True)
+        fig.update_layout(xaxis_title="날짜", yaxis_title="확률(%)")
+        st.plotly_chart(fig, use_container_width=True)
+
 
 if __name__ == "__main__":
     main() 
