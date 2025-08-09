@@ -76,16 +76,16 @@ def _parse_kbo_date_info_to_date(date_info: str) -> str | None:
 
 # 팀별 고정 색상(요청 우선 적용). 지정되지 않은 팀은 기본 팔레트 사용
 TEAM_COLOR_MAP = {
-    'LG': '#A50034',      # LG Red
-    '한화': '#FFA500',     # Orange
-    '키움': '#800020',     # Burgundy
-    '두산': '#000080',     # Navy
-    '삼성': '#1E90FF',     # Dodger Blue
-    'SSG': '#FFD700',     # Gold / Yellow
-    'KT': '#000000',      # Black
-    '롯데': '#ED1C24',     # Lotte Red
-    'KIA': '#C4172C',      # KIA Red
-    'NC': '#B9975B',       # Gold (Marine Blue는 두산과 유사하므로 보조색 사용)
+    'LG': '#B31942',      # 밝기 + 채도 보정
+    '한화': '#FF8C00',     # Dark Orange
+    '키움': '#A45A6B',     # 와인색
+    '두산': '#003366',     # Deep Blue
+    '삼성': '#1E90FF',     # 유지
+    'SSG': '#FFD700',     # 유지
+    'KT': '#4B4B4B',      # 짙은 그레이
+    '롯데': '#FF4C4C',     # 밝은 레드
+    'KIA': '#8B0000',      # Dark Red
+    'NC': '#B8860B',       # 브론즈
 }
 
 
