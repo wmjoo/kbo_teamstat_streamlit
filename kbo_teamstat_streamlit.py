@@ -1358,13 +1358,25 @@ def main():
                 st.info("아직 시뮬레이션 이력이 없습니다.")
                 return
             # 일자 컬럼 생성
-            # 기준일자 우선: base_date가 있으면 그걸 사용, 없으면 timestamp의 date 사용
-            if 'base_date' in df_hist.columns and df_hist['base_date'].notna().any():
+            # 날짜 소스 선택: 기본은 기준일자(base_date), 필요 시 실행일(timestamp) 기준으로 전환 가능
+            src_col1, src_col2 = st.columns(2)
+            with src_col1:
+                use_run_date = st.checkbox("실행일(로그 시각) 기준으로 보기", value=False)
+            # 기준일자 우선 또는 실행일 선택
+            if use_run_date and 'timestamp' in df_hist.columns:
+                df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
+            elif 'base_date' in df_hist.columns and df_hist['base_date'].notna().any():
                 df_hist['date'] = df_hist['base_date']
             elif 'timestamp' in df_hist.columns:
-                df_hist['date'] = pd.to_datetime(df_hist['timestamp']).dt.date
+                df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
             else:
                 df_hist['date'] = pd.NaT
+            # 기준일이 하나뿐이라 점이 한 개로 보일 때 자동 안내 및 실행일로 보기 권장
+            try:
+                if not use_run_date and 'date' in df_hist.columns and pd.Series(df_hist['date']).nunique() <= 1 and 'timestamp' in df_hist.columns:
+                    st.info("기준일이 하나뿐이라 일자축에 점이 1개로 보일 수 있습니다. '실행일(로그 시각) 기준으로 보기'를 켜면 일자별 변화 추이를 볼 수 있어요.")
+            except Exception:
+                pass
             # 최근 N일 UI
             col1, col2 = st.columns(2)
             with col1:
