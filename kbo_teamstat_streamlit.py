@@ -1258,13 +1258,13 @@ def main():
         df_final = st.session_state['df_final']
         fig3 = px.scatter(df_final, x='승률', y='p_wpct', 
                     title="실제 승률 vs 피타고리안 승률", hover_data=['팀명'], text='팀명')
-        fig3.add_trace(go.Scatter(x=[0.25, 0.70], y=[0.25, 0.70], mode='lines', name='기준선',
+        fig3.add_trace(go.Scatter(x=[0.25, 0.65], y=[0.25, 0.65], mode='lines', name='기준선',
                                   line=dict(dash='dash', color='red')))
         fig3.update_traces(textposition="top center", marker_size=12)
-        fig3.update_xaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.05)
-        fig3.update_yaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.05, scaleanchor="x")
+        fig3.update_xaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig3.update_yaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
         fig3.update_layout(showlegend=False)
-        st.plotly_chart(fig3, use_container_width=False)
+        st.plotly_chart(fig3, use_container_width=True)
         
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
