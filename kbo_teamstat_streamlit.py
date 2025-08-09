@@ -1122,7 +1122,7 @@ def main():
         on='팀명', how='left'
     )
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승 확률", "📅 시뮬레이션 이력"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승확률", "📅 히스토리"])
 
     with tab1:
         # 피타고리안 승률 계산
@@ -1360,9 +1360,10 @@ def main():
             # 일자 컬럼 생성
             # 날짜 소스 선택: 기본은 기준일자(base_date), 필요 시 실행일(timestamp) 기준으로 전환 가능
             src_col1, src_col2 = st.columns(2)
-            with src_col1:
-                use_run_date = st.checkbox("실행일(로그 시각) 기준으로 보기", value=False)
+            # with src_col1:
+            #     use_run_date = st.checkbox("실행일(로그 시각) 기준으로 보기", value=False)
             # 기준일자 우선 또는 실행일 선택
+            use_run_date = False
             if use_run_date and 'timestamp' in df_hist.columns:
                 df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
             elif 'base_date' in df_hist.columns and df_hist['base_date'].notna().any():
@@ -1419,6 +1420,11 @@ def main():
                             tr.marker.color = TEAM_COLOR_MAP[team]
                 except Exception:
                     pass
+                # 마커 사이즈 키우기
+                try:
+                    fig_c.update_traces(marker=dict(size=10))
+                except Exception:
+                    pass
                 fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_c, use_container_width=True)
             # 팀별 라인플랏(PO) — 일자별 평균
@@ -1434,6 +1440,11 @@ def main():
                         if team in TEAM_COLOR_MAP:
                             tr.line.color = TEAM_COLOR_MAP[team]
                             tr.marker.color = TEAM_COLOR_MAP[team]
+                except Exception:
+                    pass
+                # 마커 사이즈 키우기
+                try:
+                    fig_p.update_traces(marker=dict(size=10))
                 except Exception:
                     pass
                 fig_p.update_yaxes(range=[0, 100], ticksuffix='%')
