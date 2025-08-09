@@ -1245,19 +1245,14 @@ def main():
         with c1:
             fig1 = px.scatter(df_hitter_combined, x='AVG', y='HR', title="타율 vs 홈런", hover_data=['팀명'], text='팀명')
             fig1.update_traces(textposition="top center", marker_size=12)
-            fig1.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.005)
-            fig1.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=5)
-            # 1:1 비율에 가깝게 고정 및 범례 숨김
-            fig1.update_yaxes(scaleanchor="x", scaleratio=1)
-            fig1.update_layout(showlegend=False)
+            fig1.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig1.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             st.plotly_chart(fig1, use_container_width=True)
         with c2:
             fig2 = px.scatter(df_pitcher_combined, x='ERA', y='SO', title="ERA vs 삼진", hover_data=['팀명'], text='팀명')
             fig2.update_traces(textposition="top center", marker_size=12)
-            fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.5)
-            fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=5)
-            fig2.update_yaxes(scaleanchor="x", scaleratio=1)
-            fig2.update_layout(showlegend=False)
+            fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             st.plotly_chart(fig2, use_container_width=True)
 
         df_final = st.session_state['df_final']
@@ -1269,6 +1264,7 @@ def main():
         fig3.update_yaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.05, scaleanchor="x", scaleratio=1)
         fig3.update_layout(showlegend=False)
         st.plotly_chart(fig3, use_container_width=True)
+        
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
     with tab4:
