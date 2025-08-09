@@ -7,9 +7,47 @@ import random
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime
+from datetime import datetime 
 import gspread
 from google.oauth2.service_account import Credentials
+
+def _diagnose_gsheet_setup() -> str:
+    """Google Sheets 연동 환경 진단 요약 문자열을 생성합니다."""
+    messages = []
+    try:
+        if "gcp_service_account" not in st.secrets:
+            messages.append("- secrets에 [gcp_service_account] 섹션이 없음 (.streamlit/secrets.toml 확인)")
+            return "\n".join(messages)
+
+        gcp = dict(st.secrets["gcp_service_account"])  # 복사본
+        required = [
+            "type",
+            "project_id",
+            "private_key_id",
+            "private_key",
+            "client_email",
+            "client_id",
+            "token_uri",
+        ]
+        missing = [k for k in required if k not in gcp or not gcp[k]]
+        if missing:
+            messages.append(f"- 누락된 키: {', '.join(missing)}")
+
+        pk = str(gcp.get("private_key", ""))
+        if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+            messages.append("- private_key 형식 오류: PEM 헤더가 없음")
+        if "\\n" not in gcp.get("private_key", "") and "\n" not in pk:
+            messages.append("- private_key 줄바꿈 누락 가능성: 로컬 TOML에서는 \\n 로 이스케이프 필요")
+
+        email = str(gcp.get("client_email", ""))
+        if not email.endswith("iam.gserviceaccount.com"):
+            messages.append("- client_email 값이 서비스 계정 이메일 형식이 아님")
+
+        if not messages:
+            messages.append("- secrets 형식은 정상으로 보임. Sheets/Drive API 활성화 및 시트 공유 권한 확인 필요")
+    except Exception as e:
+        messages.append(f"- 진단 중 예외 발생: {e}")
+    return "\n".join(messages)
 
 def get_gsheet_client():
     try:
@@ -119,7 +157,8 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
     try:
         client = get_gsheet_client()
         if client is None:
-            st.error("구글 시트 클라이언트를 초기화할 수 없습니다.; client is None")
+            diag = _diagnose_gsheet_setup()
+            st.error("구글 시트 클라이언트를 초기화할 수 없습니다.\n원인 진단:\n" + diag)
             return
             
         # 스프레드시트 열기 (없으면 생성)
@@ -981,6 +1020,7 @@ def main():
             client = get_gsheet_client()
             if client is None:
                 st.info("Google Sheets 연결이 설정되지 않았습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+                st.warning("진단 정보:\n" + _diagnose_gsheet_setup())
             else:
                 worksheet = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
                 history = worksheet.get_all_records()
