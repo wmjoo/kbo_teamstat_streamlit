@@ -789,6 +789,22 @@ def scrape_kbo_standings():
     for c in ['경기','승','패','무','승률']:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors='coerce')
+    # 무승부 보정: 원본에 없거나 결측이면 경기-승-패로 계산
+    try:
+        if '무' not in df.columns:
+            df['무'] = (df['경기'] - df['승'] - df['패']).clip(lower=0)
+        else:
+            null_mask = df['무'].isna()
+            if null_mask.any():
+                df.loc[null_mask, '무'] = (df.loc[null_mask, '경기'] - df.loc[null_mask, '승'] - df.loc[null_mask, '패']).clip(lower=0)
+    except Exception:
+        pass
+    # 컬럼 재정렬(무 포함 보장)
+    try:
+        desired = [col for col in ['팀명','경기','승','패','무','승률','게임차','최근10경기'] if col in df.columns]
+        df = df[desired + [c for c in df.columns if c not in desired]]
+    except Exception:
+        pass
     df = df.sort_values('승률', ascending=False).reset_index(drop=True)
     df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df, date_info
