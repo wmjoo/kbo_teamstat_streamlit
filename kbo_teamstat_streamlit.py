@@ -1457,6 +1457,7 @@ def main():
             # 표는 아래로 이동하여 원본 기록을 그대로 표시
             df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
 
+
             # 일자별 피벗 테이블(우승/PO) 생성: 해당 일자에 모든 값이 결측이면 해당 일자 행 제거
             try:
                 # 우승 확률 피벗
@@ -1478,12 +1479,14 @@ def main():
                     pivot_po = pivot_po.reindex(columns=existing_cols_po)
                 pivot_po = pivot_po.dropna(how='all')
 
-                st.subheader('일자별 우승 확률(%) 피벗')
-                safe_dataframe_display(pivot_win.round(2).reset_index(), use_container_width=True, hide_index=True)
-                st.subheader('일자별 PO 확률(%) 피벗')
-                safe_dataframe_display(pivot_po.round(2).reset_index(), use_container_width=True, hide_index=True)
-            except Exception:
-                pass
+                with st.expander("🔎 일자별 우승 확률", expanded=False):
+                    st.subheader('일자별 우승 확률(%)')
+                    safe_dataframe_display(pivot_win.round(2).reset_index(), use_container_width=True, hide_index=True)
+                with st.expander("🔎 일자별 PO 확률", expanded=False):
+                    st.subheader('일자별 PO 확률(%)')
+                    safe_dataframe_display(pivot_po.round(2).reset_index(), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
 
             with st.expander("🔎 원본 데이터", expanded=False):
                 st.subheader("원본 로그")
