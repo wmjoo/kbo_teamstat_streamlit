@@ -1366,21 +1366,15 @@ def main():
             else:
                 df_hist['date'] = pd.NaT
             # 최근 N일 UI
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 n_days = st.number_input("최근 N일", min_value=3, max_value=180, value=30, step=1)
             with col2:
                 show_markers = st.checkbox("마커 표시", value=True)
-            with col3:
-                smooth = st.checkbox("일자별 평균(중복 타임 스탬프 집계)", value=True)
 
-            # 일자별 집계: 팀별 평균 우승/PO
-            if smooth:
-                df_day = df_hist.groupby(['date','팀명'], as_index=False).agg({'우승':'mean','PO':'mean'})
-            else:
-                df_day = df_hist.copy()
-                if 'date' not in df_day.columns:
-                    df_day['date'] = pd.NaT
+            # 일자별 집계: 동일 일자에 여러 로그가 있으면 평균으로 집계(팀별)
+            df_day = df_hist.groupby(['date','팀명'], as_index=False).agg({'우승':'mean','PO':'mean'})
+            df_day = df_day.sort_values(['date','팀명'])
             # 최근 N일 필터
             try:
                 if df_day['date'].notna().any():
@@ -1397,7 +1391,7 @@ def main():
             except Exception:
                 team_order = None
 
-            # 팀별 라인플랏(우승)
+            # 팀별 라인플랏(우승) — 일자별 평균
             if {'date','팀명','우승'}.issubset(df_day.columns):
                 fig_c = px.line(
                     df_day, x='date', y='우승', color='팀명', markers=show_markers,
@@ -1415,7 +1409,7 @@ def main():
                     pass
                 fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_c, use_container_width=True)
-            # 팀별 라인플랏(PO)
+            # 팀별 라인플랏(PO) — 일자별 평균
             if {'date','팀명','PO'}.issubset(df_day.columns):
                 fig_p = px.line(
                     df_day, x='date', y='PO', color='팀명', markers=show_markers,
