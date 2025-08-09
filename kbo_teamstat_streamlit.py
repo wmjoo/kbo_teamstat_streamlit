@@ -1202,7 +1202,7 @@ def main():
                 st.write(f"디버그 출력 중 오류: {e}")
 
     with tab2:
-        st.header("🏟️ 팀별 기록")
+        # st.header("🏟️ 팀별 기록")
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("타자 기록")
@@ -1240,7 +1240,7 @@ def main():
                 cols[i].metric(f"{i+1}위 {row.팀명}", f"{row.WHIP:.2f}")
 
     with tab3:
-        st.header("📊 시각화")
+        # st.header("📊 시각화")
         c1, c2 = st.columns(2)
         with c1:
             fig1 = px.scatter(df_hitter_combined, x='AVG', y='HR', title="타율 vs 홈런", hover_data=['팀명'], text='팀명')
@@ -1318,7 +1318,7 @@ def main():
                 st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
     with tab5:
-        st.header("📅 시뮬레이션 이력")
+        # st.header("📅 시뮬레이션 이력")
         try:
             ws = _open_log_worksheet("SimulationLog")
             if ws is None:
