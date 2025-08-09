@@ -15,7 +15,7 @@ def get_gsheet_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
-        
+        st.write(gcp_dict)
         # private_key가 문자열인지 확인하고 필요시 처리
         if 'private_key' in gcp_dict:
             private_key = gcp_dict['private_key']
