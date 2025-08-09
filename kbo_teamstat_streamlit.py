@@ -1263,7 +1263,7 @@ def main():
         fig3.update_xaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.05)
         fig3.update_yaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray', dtick=0.05, scaleanchor="x", scaleratio=1)
         fig3.update_layout(showlegend=False)
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, use_container_width=False)
         
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
