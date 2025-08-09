@@ -43,7 +43,11 @@ def safe_dataframe_display(df, use_container_width=True, hide_index=True):
         # 모든 컬럼을 문자열로 변환하여 Arrow 호환성 문제 방지
         df_display = df.copy()
         for col in df_display.columns:
-            df_display[col] = df_display[col].astype(str)
+            try:
+                df_display[col] = df_display[col].astype(str)
+            except:
+                # 변환 실패 시 원본 값 유지
+                pass
         
         st.dataframe(df_display, use_container_width=use_container_width, hide_index=hide_index)
     except Exception as e:
@@ -51,6 +55,28 @@ def safe_dataframe_display(df, use_container_width=True, hide_index=True):
         # 오류 발생 시 원본 데이터프레임을 문자열로 변환하여 표시
         st.write("데이터 표시에 문제가 있어 원본 형태로 표시합니다:")
         st.write(df)
+
+def clean_dataframe_for_display(df):
+    """데이터프레임을 표시용으로 정리하는 함수"""
+    try:
+        df_clean = df.copy()
+        
+        # IP 컬럼이 있으면 문자열로 변환
+        if 'IP' in df_clean.columns:
+            df_clean['IP'] = df_clean['IP'].astype(str)
+        
+        # 모든 숫자 컬럼을 문자열로 변환하여 Arrow 호환성 문제 방지
+        for col in df_clean.columns:
+            if col not in ['팀명', '순위']:  # 팀명과 순위는 그대로 유지
+                try:
+                    df_clean[col] = df_clean[col].astype(str)
+                except:
+                    pass
+        
+        return df_clean
+    except Exception as e:
+        st.error(f"데이터프레임 정리 중 오류 발생: {e}")
+        return df
 
 
 def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
@@ -320,7 +346,11 @@ def scrape_kbo_team_pitching_stats():
         df = pd.DataFrame(data, columns=columns)
         
         # IP 컬럼을 문자열로 확실히 변환
-        df['IP'] = df['IP'].astype(str)
+        try:
+            df['IP'] = df['IP'].astype(str)
+        except:
+            # 변환 실패 시 모든 값을 문자열로 변환
+            df['IP'] = df['IP'].apply(lambda x: str(x) if x is not None else '')
         
         df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
         df.insert(0, '순위', range(1, len(df) + 1))
@@ -653,11 +683,13 @@ def main():
         
         with col1:
             st.subheader("타자 기록")
-            safe_dataframe_display(df_hitter_combined, use_container_width=True, hide_index=True)
+            df_hitter_clean = clean_dataframe_for_display(df_hitter_combined)
+            safe_dataframe_display(df_hitter_clean, use_container_width=True, hide_index=True)
         
         with col2:
             st.subheader("투수 기록")
-            safe_dataframe_display(df_pitcher_combined, use_container_width=True, hide_index=True)
+            df_pitcher_clean = clean_dataframe_for_display(df_pitcher_combined)
+            safe_dataframe_display(df_pitcher_clean, use_container_width=True, hide_index=True)
         
         # Top 3 팀들을 2열로 배치
         st.subheader("🏆 TOP 3 팀")
@@ -789,7 +821,8 @@ def main():
         df_display['최종기대승수_피타고리안기반'] = df_display['최종기대승수_피타고리안기반'].round(1)
         df_display.rename(columns={'p_wpct': '피타고리안승률', '최종기대승수_피타고리안기반': '예상최종승수'}, inplace=True)
         
-        safe_dataframe_display(df_display, use_container_width=True, hide_index=True)
+        df_display_clean = clean_dataframe_for_display(df_display)
+        safe_dataframe_display(df_display_clean, use_container_width=True, hide_index=True)
     
     with tab3:
         st.header("📊 시각화")
@@ -871,7 +904,8 @@ def main():
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    safe_dataframe_display(combined_df, use_container_width=True, hide_index=True)
+                    combined_df_clean = clean_dataframe_for_display(combined_df)
+                    safe_dataframe_display(combined_df_clean, use_container_width=True, hide_index=True)
                 
                 with col2:
                     # 우승 확률 시각화
