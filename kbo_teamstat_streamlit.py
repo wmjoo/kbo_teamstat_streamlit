@@ -65,6 +65,14 @@ def clean_dataframe_for_display(df):
         if 'IP' in df_clean.columns:
             df_clean['IP'] = df_clean['IP'].astype(str)
         
+        # 숫자 컬럼은 소수점 3자리까지 표시
+        for col in df_clean.columns:
+            if col not in ['팀명', '순위']:  # 팀명과 순위는 그대로 유지
+                try:
+                    df_clean[col] = df_clean[col].astype(float).round(3)
+                except:
+                    pass
+
         # 모든 숫자 컬럼을 문자열로 변환하여 Arrow 호환성 문제 방지
         for col in df_clean.columns:
             if col not in ['팀명', '순위']:  # 팀명과 순위는 그대로 유지
@@ -899,12 +907,14 @@ def main():
                 combined_df = combined_df.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
                 combined_df.rename(columns={display_col: '예상최종승수'}, inplace=True)
                 
-                st.subheader("🏆 KBO 우승 확률 & 🎯 플레이오프 진출 확률")
+                st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
                 
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     combined_df_clean = clean_dataframe_for_display(combined_df)
+                    combined_df_clean.rename(columns={'우승확률_퍼센트': '우승확률'}, inplace=True)
+                    combined_df_clean.rename(columns={'플레이오프진출확률_퍼센트': 'PO확률'}, inplace=True)
                     safe_dataframe_display(combined_df_clean, use_container_width=True, hide_index=True)
                 
                 with col2:
