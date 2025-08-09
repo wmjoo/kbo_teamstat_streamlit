@@ -1254,9 +1254,9 @@ def main():
         df_final = st.session_state['df_final']
         c1, c2 = st.columns(2)
         with c1:
-            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10_000, 100_000, 50_000, step=10_000)
+            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10_000, 100_000, 100_000, step=10_000)
         with c2:
-            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 10_000, 100_000, 50_000, step=10_000)
+            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 10_000, 100_000, 100_000, step=10_000)
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
@@ -1317,8 +1317,8 @@ def main():
             df_hist = pd.DataFrame(rows, columns=header)
             # 스키마 정규화
             rename_map = {
-                '우승확률_퍼센트': '우승',
-                '플레이오프진출확률_퍼센트': 'PO',
+                '우승': '우승',
+                'PO': 'PO',
                 '팀명': '팀명',
                 'timestamp': 'timestamp',
                 'base_date': 'base_date',
