@@ -1269,9 +1269,9 @@ def main():
         df_final = st.session_state['df_final']
         c1, c2 = st.columns(2)
         with c1:
-            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10_000, 100_000, 100_000, step=10_000)
+            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 50_000, 300_000, 100_000, step=10_000)
         with c2:
-            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 10_000, 100_000, 100_000, step=10_000)
+            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 50_000, 300_000, 100_000, step=10_000)
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
@@ -1304,6 +1304,10 @@ def main():
                 with cc1:
                     fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
                                  color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
+                    try:
+                        fig.update_traces(text=combined['우승확률_퍼센트'], texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
+                    except Exception:
+                        pass
                     fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
@@ -1312,6 +1316,10 @@ def main():
                 with cc2:
                     fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
                                 color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
+                    try:
+                        fig2.update_traces(text=combined['플레이오프진출확률_퍼센트'], texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
+                    except Exception:
+                        pass
                     fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                     fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
