@@ -1305,7 +1305,7 @@ def main():
                     fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
                                  color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
                     try:
-                        fig.update_traces(text=combined['우승확률_퍼센트'], texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
+                        fig.update_traces(text=combined['우승확률_퍼센트'], texttemplate='%{text:.3f}%', textposition='outside', cliponaxis=False)
                     except Exception:
                         pass
                     fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
