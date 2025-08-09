@@ -1457,7 +1457,8 @@ def main():
             # 표는 아래로 이동하여 원본 기록을 그대로 표시
             df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
             st.subheader("원본 로그")
-            st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']).sort_values(['base_date', '팀명'], ascending=False), use_container_width=True)
+            st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']).sort_values(['base_date', '팀명'], ascending=False), use_container_width=True,
+                         hide_index=True)
         except Exception as e:
             st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
