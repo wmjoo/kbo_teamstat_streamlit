@@ -94,7 +94,7 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
             # 조용히 실패 처리 (사용자에게 경고 메시지 표시하지 않음)
             return
             
-        sh = client.open("KBO_Simulation_Log")  # 구글 시트 이름
+        sh = client.open("SimulationLog")  # 구글 시트 이름
         try:
             worksheet = sh.worksheet(sheet_name)
         except:
