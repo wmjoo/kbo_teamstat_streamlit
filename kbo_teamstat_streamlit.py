@@ -1310,7 +1310,7 @@ def main():
                         pass
                     fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
                     st.plotly_chart(fig, use_container_width=True)
 
                 with cc2:
@@ -1322,7 +1322,7 @@ def main():
                         pass
                     fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                     fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                    fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
                     st.plotly_chart(fig2, use_container_width=True)
                 st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
@@ -1428,7 +1428,7 @@ def main():
                     fig_c.update_traces(marker=dict(size=10))
                 except Exception:
                     pass
-                fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
+                fig_c.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
                 st.plotly_chart(fig_c, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -1463,7 +1463,7 @@ def main():
                     fig_p.update_traces(marker=dict(size=10))
                 except Exception:
                     pass
-                fig_p.update_yaxes(range=[0, 100], ticksuffix='%')
+                fig_p.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
                 st.plotly_chart(fig_p, use_container_width=True)
                 try:
                     pivot_po = (
