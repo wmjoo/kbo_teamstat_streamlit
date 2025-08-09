@@ -1380,21 +1380,35 @@ def main():
             except Exception:
                 pass
 
+            # 범례(팀명) 정렬: 현재 순위 승률 높은 순
+            try:
+                team_order = df_standings.sort_values('승률', ascending=False)['팀명'].tolist() if '승률' in df_standings.columns else df_standings['팀명'].tolist()
+            except Exception:
+                team_order = None
+
             # 팀별 라인플랏(우승)
             if {'date','팀명','우승'}.issubset(df_day.columns):
-                fig_c = px.line(df_day, x='date', y='우승', color='팀명', markers=show_markers, title='팀별 우승 확률 (일자별)')
+                fig_c = px.line(
+                    df_day, x='date', y='우승', color='팀명', markers=show_markers,
+                    title='팀별 우승 확률 (일자별)',
+                    category_orders={'팀명': team_order} if team_order else None
+                )
                 fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_c, use_container_width=True)
             # 팀별 라인플랏(PO)
             if {'date','팀명','PO'}.issubset(df_day.columns):
-                fig_p = px.line(df_day, x='date', y='PO', color='팀명', markers=show_markers, title='팀별 PO 진출 확률 (일자별)')
+                fig_p = px.line(
+                    df_day, x='date', y='PO', color='팀명', markers=show_markers,
+                    title='팀별 PO 진출 확률 (일자별)',
+                    category_orders={'팀명': team_order} if team_order else None
+                )
                 fig_p.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_p, use_container_width=True)
 
             # 표는 아래로 이동하여 원본 기록을 그대로 표시
             df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
             st.subheader("원본 로그")
-            st.dataframe(df_hist_sorted, use_container_width=True)
+            st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']), use_container_width=True)
         except Exception as e:
             st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
