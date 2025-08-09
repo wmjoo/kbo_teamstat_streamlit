@@ -61,6 +61,19 @@ KBO_URLS = {
     'standings': 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx',
 }
 
+def _parse_kbo_date_info_to_date(date_info: str) -> str | None:
+    """'(YYYY년 M월 D일 기준)' 문자열에서 YYYY-MM-DD 형식의 기준일자를 추출."""
+    try:
+        if not date_info:
+            return None
+        m = re.search(r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일", str(date_info))
+        if not m:
+            return None
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return f"{y:04d}-{mo:02d}-{d:02d}"
+    except Exception:
+        return None
+
 def _build_session() -> requests.Session:
     session = requests.Session()
     retry = Retry(
@@ -176,7 +189,7 @@ def _extract_sheet_id_from_url(url: str) -> str | None:
     except Exception:
         return None
 
-def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLog"):
+def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLog", base_date: str | None = None):
     try:
         client = get_gsheet_client()
         if client is None:
@@ -232,7 +245,10 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
         now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
         formatted_time = now_kst.strftime("%Y-%m-%d %H:%M:%S")
         df_out = df_result.copy()
-        df_out.insert(0, "timestamp", formatted_time)
+        # 기준일(base_date)은 KBO 페이지 기준일자(예: 2025-08-10). 없으면 오늘 날짜 사용
+        base_date_str = base_date if base_date else now_kst.strftime("%Y-%m-%d")
+        df_out.insert(0, "base_date", base_date_str)
+        df_out.insert(1, "timestamp", formatted_time)
 
         if created_new_ws:
             try:
@@ -1254,7 +1270,9 @@ def main():
                 df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
 
                 log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
-                append_simulation_to_sheet(log_df, "SimulationLog")
+                # 기준일은 순위 페이지에서 추출한 date_info 사용
+                base_date = _parse_kbo_date_info_to_date(date_info) if date_info else None
+                append_simulation_to_sheet(log_df, "SimulationLog", base_date=base_date)
 
                 display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
                 combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
@@ -1303,6 +1321,7 @@ def main():
                 '플레이오프진출확률_퍼센트': 'PO',
                 '팀명': '팀명',
                 'timestamp': 'timestamp',
+                'base_date': 'base_date',
             }
             for k, v in list(rename_map.items()):
                 if k not in df_hist.columns and v in df_hist.columns:
@@ -1316,6 +1335,11 @@ def main():
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], errors='coerce')
                 except Exception:
                     pass
+            if 'base_date' in df_hist.columns:
+                try:
+                    df_hist['base_date'] = pd.to_datetime(df_hist['base_date'], errors='coerce').dt.date
+                except Exception:
+                    pass
             for col in ['우승', 'PO']:
                 if col in df_hist.columns:
                     df_hist[col] = pd.to_numeric(df_hist[col], errors='coerce')
@@ -1323,7 +1347,10 @@ def main():
                 st.info("아직 시뮬레이션 이력이 없습니다.")
                 return
             # 일자 컬럼 생성
-            if 'timestamp' in df_hist.columns:
+            # 기준일자 우선: base_date가 있으면 그걸 사용, 없으면 timestamp의 date 사용
+            if 'base_date' in df_hist.columns and df_hist['base_date'].notna().any():
+                df_hist['date'] = df_hist['base_date']
+            elif 'timestamp' in df_hist.columns:
                 df_hist['date'] = pd.to_datetime(df_hist['timestamp']).dt.date
             else:
                 df_hist['date'] = pd.NaT
