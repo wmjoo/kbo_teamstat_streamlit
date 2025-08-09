@@ -1372,17 +1372,17 @@ def main():
             else:
                 df_hist['date'] = pd.NaT
             # 기준일이 하나뿐이라 점이 한 개로 보일 때 자동 안내 및 실행일로 보기 권장
-            try:
-                if not use_run_date and 'date' in df_hist.columns and pd.Series(df_hist['date']).nunique() <= 1 and 'timestamp' in df_hist.columns:
-                    st.info("기준일이 하나뿐이라 일자축에 점이 1개로 보일 수 있습니다. '실행일(로그 시각) 기준으로 보기'를 켜면 일자별 변화 추이를 볼 수 있어요.")
-            except Exception:
-                pass
+            # try:
+            #     if not use_run_date and 'date' in df_hist.columns and pd.Series(df_hist['date']).nunique() <= 1 and 'timestamp' in df_hist.columns:
+            #         st.info("기준일이 하나뿐이라 일자축에 점이 1개로 보일 수 있습니다. '실행일(로그 시각) 기준으로 보기'를 켜면 일자별 변화 추이를 볼 수 있어요.")
+            # except Exception:
+            #     pass
             # 최근 N일 UI
-            col1, col2 = st.columns(2)
-            with col1:
-                n_days = st.number_input("최근 N일", min_value=3, max_value=180, value=30, step=1)
-            with col2:
-                show_markers = st.checkbox("마커 표시", value=True)
+            # col1, col2 = st.columns(2)
+            # with col1:
+            n_days = st.number_input("최근 N일", min_value=3, max_value=180, value=30, step=1)
+            # with col2:
+            show_markers = True #st.checkbox("마커 표시", value=True)
 
             # 일자별 집계: 동일 일자에 여러 로그가 있으면 평균으로 집계(팀별)
             df_day = df_hist.groupby(['date','팀명'], as_index=False).agg({'우승':'mean','PO':'mean'})
