@@ -1098,7 +1098,7 @@ def main():
                     '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
                     '순위': None if df_standings is None else df_standings.shape,
                 })
-                dbg_cols = st.columns(5)
+                dbg_cols = st.columns(4)
                 with dbg_cols[0]:
                     st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
                 with dbg_cols[1]:
@@ -1107,8 +1107,8 @@ def main():
                     st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
                 with dbg_cols[3]:
                     st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
-                with dbg_cols[4]:
-                    st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
+                # with dbg_cols[4]:
+                st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
             except Exception as e:
                 st.write(f"디버그 출력 중 오류: {e}")
 
@@ -1171,8 +1171,8 @@ def main():
         fig3.add_trace(go.Scatter(x=[0.25, 0.70], y=[0.25, 0.70], mode='lines', name='기준선',
                                   line=dict(dash='dash', color='red')))
         fig3.update_traces(textposition="top center", marker_size=12)
-        fig3.update_xaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
-        fig3.update_yaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig3.update_xaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig3.update_yaxes(range=[0.25, 0.70], showgrid=True, gridwidth=1, gridcolor='lightgray')
         st.plotly_chart(fig3, use_container_width=True)
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
