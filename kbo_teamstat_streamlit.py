@@ -13,7 +13,10 @@ from google.oauth2.service_account import Credentials
 
 def get_gsheet_client():
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
         gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
         # st.write(gcp_dict)
         # private_key가 문자열인지 확인하고 필요시 처리
@@ -94,21 +97,35 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
             st.error("구글 시트 클라이언트를 초기화할 수 없습니다.; client is None")
             return
             
-        sh = client.open("SimulationLog")  # 구글 시트 이름
+        # 스프레드시트 열기 (없으면 생성)
+        try:
+            sh = client.open("KBO_Simulation_Log")  # 스프레드시트 이름 통일
+        except Exception:
+            sh = client.create("KBO_Simulation_Log")
+
+        # 워크시트 열기 (없으면 생성) 및 헤더 추가
+        created_new_worksheet = False
         try:
             worksheet = sh.worksheet(sheet_name)
-        except:
+        except Exception:
             worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
+            created_new_worksheet = True
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         df_result = df_result.copy()
         df_result.insert(0, "timestamp", timestamp)
 
+        # 새 워크시트인 경우 헤더 추가
+        if created_new_worksheet:
+            try:
+                worksheet.append_row(df_result.columns.tolist(), value_input_option="USER_ENTERED")
+            except Exception:
+                pass
+
         worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
         st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
     except Exception as e:
-        # 조용히 실패 처리 (사용자에게 경고 메시지 표시하지 않음)
-        pass
+        st.error(f"Google Sheets 저장 중 오류: {e}")
 
 # 페이지 설정
 st.set_page_config(
