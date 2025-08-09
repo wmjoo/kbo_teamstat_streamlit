@@ -51,6 +51,15 @@ HEADERS = {
     'Upgrade-Insecure-Requests': '1',
 }
 
+# KBO 원본 URL 상수
+KBO_URLS = {
+    'hitter_basic1': 'https://www.koreabaseball.com/Record/Team/Hitter/Basic1.aspx',
+    'hitter_basic2': 'https://www.koreabaseball.com/Record/Team/Hitter/Basic2.aspx',
+    'pitcher_basic1': 'https://www.koreabaseball.com/Record/Team/Pitcher/Basic1.aspx',
+    'pitcher_basic2': 'https://www.koreabaseball.com/Record/Team/Pitcher/Basic2.aspx',
+    'standings': 'https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx',
+}
+
 def _build_session() -> requests.Session:
     session = requests.Session()
     retry = Retry(
@@ -454,6 +463,81 @@ def _ensure_team_first_column(df: pd.DataFrame) -> pd.DataFrame:
         df = df[new_cols].copy()
     return df
 
+def _drop_rank_like_columns(df: pd.DataFrame, team_col_index: int = 0) -> pd.DataFrame:
+    """헤더에 '순위'가 포함되거나 값이 1..10 정수 위주인 열을 제거(팀명 열 제외)."""
+    try:
+        cols = list(df.columns)
+        drop_indices: list[int] = []
+        for i, col in enumerate(cols):
+            if i == team_col_index:
+                continue
+            cname = str(col)
+            if '순위' in cname:
+                drop_indices.append(i)
+                continue
+            try:
+                s = pd.to_numeric(df.iloc[:, i], errors='coerce')
+                non_na = s.dropna()
+                if 0 < len(non_na) and (non_na.between(1, 10).mean() > 0.8):
+                    drop_indices.append(i)
+            except Exception:
+                continue
+        if drop_indices:
+            keep = [j for j in range(len(cols)) if j not in set(drop_indices)]
+            df = df.iloc[:, keep].copy()
+        return df
+    except Exception:
+        return df
+
+def _normalize_standings_df(df: pd.DataFrame) -> pd.DataFrame:
+    """순위 테이블의 컬럼을 표준 순서로 재배치하고 '순위'처럼 불필요한 랭크열은 제거.
+    타겟 순서: 팀명, 경기, 승, 패, 무, 승률, 게임차, 최근10경기
+    """
+    if df is None or df.empty:
+        return df
+    # 팀명 열을 앞으로 보장
+    df = _ensure_team_first_column(df)
+    # 순위 유사 열 제거
+    df = _drop_rank_like_columns(df, team_col_index=0)
+    # 컬럼명 정규화
+    def norm(s: str) -> str:
+        return re.sub(r"\s+", "", str(s))
+    colmap = {i: norm(c) for i, c in enumerate(df.columns)}
+    want = {
+        '팀명': ['팀명', '팀', '구단'],
+        '경기': ['경기', 'G', '게임수'],
+        '승': ['승', 'W'],
+        '패': ['패', 'L'],
+        '무': ['무', 'D', '무승부'],
+        '승률': ['승률', 'WPCT'],
+        '게임차': ['게임차', 'GB'],
+        '최근10경기': ['최근10경기', '최근10'],
+    }
+    found: dict[str, int | None] = {k: None for k in want}
+    for target, keys in want.items():
+        for idx, cname in colmap.items():
+            if any(k in cname for k in keys):
+                found[target] = idx
+                break
+    # 필수: 팀명, 경기, 승, 패, 승률
+    essential = ['팀명', '경기', '승', '패', '승률']
+    if any(found[k] is None for k in essential):
+        return df
+    order = [found['팀명'], found['경기'], found['승'], found['패'], found['무'], found['승률'], found['게임차'], found['최근10경기']]
+    order = [i for i in order if i is not None]
+    df2 = df.iloc[:, order].copy()
+    # 컬럼명 부여
+    cols_final = ['팀명', '경기', '승', '패']
+    if found['무'] is not None:
+        cols_final.append('무')
+    cols_final += ['승률']
+    if found['게임차'] is not None:
+        cols_final.append('게임차')
+    if found['최근10경기'] is not None:
+        cols_final.append('최근10경기')
+    df2.columns = cols_final
+    return df2
+
 def _standardize_kbo_team_name(raw_name: str) -> str | None:
     """페이지마다 다른 팀명 표기를 표준 팀명으로 통일.
     예: 'SSG랜더스' → 'SSG', '키움히어로즈' → '키움', '기아' → 'KIA' 등
@@ -679,15 +763,13 @@ def scrape_kbo_standings():
         if df is None or df.empty:
             st.error("순위 테이블을 찾을 수 없습니다.")
             return None, date_info
+    # 컬럼 구조 정규화 및 팀명 표준화
+    df = _normalize_standings_df(df)
     try:
         df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(['LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움'])].copy()
-    cols = ['팀명','경기','승','패','무','승률','게임차','최근10경기']
-    take = min(len(df.columns), len(cols))
-    df = df.iloc[:, :take].copy()
-    df.columns = cols[:take]
     for c in ['경기','승','패','무','승률']:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -998,6 +1080,7 @@ def main():
         display.rename(columns={'p_wpct':'피타고리안승률','최종기대승수_피타고리안기반':'예상최종승수'}, inplace=True)
         display['피타고리안승률'] = display['피타고리안승률'].round(4)
         safe_dataframe_display(clean_dataframe_for_display(display), use_container_width=True, hide_index=True)
+        st.caption(f"원본 데이터: [KBO 팀 순위]({KBO_URLS['standings']})  |  [타자 기본]({KBO_URLS['hitter_basic1']})  |  [투수 기본]({KBO_URLS['pitcher_basic1']})")
 
     with tab2:
         st.header("🏟️ 팀별 기록")
@@ -1005,9 +1088,11 @@ def main():
         with c1:
             st.subheader("타자 기록")
             safe_dataframe_display(clean_dataframe_for_display(df_hitter_combined), True, True)
+            st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']})")
         with c2:
             st.subheader("투수 기록")
             safe_dataframe_display(clean_dataframe_for_display(df_pitcher_combined), True, True)
+            st.caption(f"원본 데이터: [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']})")
 
         st.subheader("🏆 TOP 3 팀")
         l, r = st.columns(2)
@@ -1059,6 +1144,7 @@ def main():
         fig3.update_xaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
         fig3.update_yaxes(range=[0.25, 0.65], showgrid=True, gridwidth=1, gridcolor='lightgray')
         st.plotly_chart(fig3, use_container_width=True)
+        st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
     with tab4:
         df_final = st.session_state['df_final']
@@ -1117,6 +1203,7 @@ def main():
                 fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 st.plotly_chart(fig2, use_container_width=True)
+                st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
     with tab5:
         st.header("📅 시뮬레이션 이력")
