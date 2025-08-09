@@ -464,7 +464,11 @@ def _ensure_team_first_column(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def _drop_rank_like_columns(df: pd.DataFrame, team_col_index: int = 0) -> pd.DataFrame:
-    """헤더에 '순위'가 포함되거나 값이 1..10 정수 위주인 열을 제거(팀명 열 제외)."""
+    """순위 열 제거(팀명 열 제외).
+    조건:
+    - 헤더에 '순위' 또는 '순'이 명시된 경우
+    - 또는 해당 열의 유효 숫자값이 정확히 1..N 형태(중복 없이 전체 길이와 동일)
+    """
     try:
         cols = list(df.columns)
         drop_indices: list[int] = []
@@ -472,14 +476,18 @@ def _drop_rank_like_columns(df: pd.DataFrame, team_col_index: int = 0) -> pd.Dat
             if i == team_col_index:
                 continue
             cname = str(col)
-            if '순위' in cname:
+            if '순위' in cname or cname.strip() in ('순', '순번', '랭킹'):
                 drop_indices.append(i)
                 continue
             try:
                 s = pd.to_numeric(df.iloc[:, i], errors='coerce')
                 non_na = s.dropna()
-                if 0 < len(non_na) and (non_na.between(1, 10).mean() > 0.8):
-                    drop_indices.append(i)
+                # 정확히 1..N 형태인지 판단
+                if len(non_na) > 0 and (non_na % 1 == 0).all():
+                    uniq = sorted(non_na.astype(int).unique().tolist())
+                    expected = list(range(1, len(df) + 1))
+                    if uniq == expected:
+                        drop_indices.append(i)
             except Exception:
                 continue
         if drop_indices:
@@ -508,7 +516,7 @@ def _normalize_standings_df(df: pd.DataFrame) -> pd.DataFrame:
         '경기': ['경기', 'G', '게임수'],
         '승': ['승', 'W'],
         '패': ['패', 'L'],
-        '무': ['무', 'D', '무승부'],
+        '무': ['무', 'D', 'T', '무승부'],
         '승률': ['승률', 'WPCT'],
         '게임차': ['게임차', 'GB'],
         '최근10경기': ['최근10경기', '최근10'],
@@ -621,6 +629,8 @@ def scrape_kbo_team_batting_stats():
         if df is None or df.empty:
             st.error("타자 기본 기록 테이블을 찾을 수 없습니다.")
             return None
+    # 순위 유사 열 제거로 컬럼 시프트 방지
+    df = _drop_rank_like_columns(df, team_col_index=0)
     # 팀명 표준화 후 필터링
     try:
         df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
@@ -655,6 +665,7 @@ def scrape_kbo_team_batting_stats_advanced():
         if df is None or df.empty:
             st.error("타자 고급 기록 테이블을 찾을 수 없습니다.")
             return None
+    df = _drop_rank_like_columns(df, team_col_index=0)
     try:
         df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
@@ -688,6 +699,7 @@ def scrape_kbo_team_pitching_stats():
         if df is None or df.empty:
             st.error("투수 기본 기록 테이블을 찾을 수 없습니다.")
             return None
+    df = _drop_rank_like_columns(df, team_col_index=0)
     try:
         df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
@@ -724,6 +736,7 @@ def scrape_kbo_team_pitching_stats_advanced():
         if df is None or df.empty:
             st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
             return None
+    df = _drop_rank_like_columns(df, team_col_index=0)
     try:
         df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
@@ -995,29 +1008,6 @@ def main():
         st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
         return
 
-    with st.expander("🔎 데이터 수집 디버그", expanded=False):
-        try:
-            st.write({
-                '타자기본': None if df_hitter is None else df_hitter.shape,
-                '타자고급': None if df_hitter_adv is None else df_hitter_adv.shape,
-                '투수기본': None if df_pitcher is None else df_pitcher.shape,
-                '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
-                '순위': None if df_standings is None else df_standings.shape,
-            })
-            dbg_cols = st.columns(5)
-            with dbg_cols[0]:
-                st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
-            with dbg_cols[1]:
-                st.caption('타자고급 head'); st.write(None if df_hitter_adv is None else df_hitter_adv.head())
-            with dbg_cols[2]:
-                st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
-            with dbg_cols[3]:
-                st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
-            with dbg_cols[4]:
-                st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
-        except Exception as e:
-            st.write(f"디버그 출력 중 오류: {e}")
-
     # 팀명 정규화(병합 전)
     df_hitter = normalize_team_names(df_hitter)
     df_hitter_adv = normalize_team_names(df_hitter_adv)
@@ -1037,6 +1027,7 @@ def main():
         df_hitter_adv[['팀명','BB','IBB','HBP','SO','GDP','SLG','OBP','OPS','MH','RISP']],
         on='팀명', how='left'
     )
+    # 타자 표에 득점 R도 포함되므로 그대로 유지
     df_pitcher_combined = pd.merge(
         df_pitcher,
         df_pitcher_adv[['팀명','CG','SHO','QS','BSV','TBF','NP','AVG','2B','3B','SAC','SF','IBB','WP','BK']],
@@ -1049,10 +1040,9 @@ def main():
         # 피타고리안 승률 계산
         df_runs = pd.merge(
             df_hitter[['팀명','R']],
-            df_pitcher[['팀명','R']],
-            on='팀명', how='left', suffixes=('', '_A')
+            df_pitcher[['팀명','R']].rename(columns={'R': 'RA'}),
+            on='팀명', how='left'
         )
-        df_runs.rename(columns={'R': 'R', 'R_A': 'RA'}, inplace=True)
         p_n = 1.834
         df_runs['p_wpct'] = (df_runs['R']**p_n) / ((df_runs['R']**p_n) + (df_runs['RA']**p_n))
         df_runs['p_wpct'] = df_runs['p_wpct'].round(4)
@@ -1077,7 +1067,7 @@ def main():
 
         st.subheader("📊 현재 순위 및 예측 분석")
         # 필요한 컬럼이 없으면 빈 값으로 채워 안전하게 표시
-        _needed = ['순위','팀명','경기','승','패','무','승률','게임차','최근10경기','p_wpct','최종기대승수_피타고리안기반']
+        _needed = ['순위','팀명','경기','승','패','무','승률','게임차','최근10경기','R','RA','p_wpct','최종기대승수_피타고리안기반']
         for _c in _needed:
             if _c not in df_final.columns:
                 df_final[_c] = pd.NA
@@ -1086,6 +1076,29 @@ def main():
         display['피타고리안승률'] = display['피타고리안승률'].round(4)
         safe_dataframe_display(clean_dataframe_for_display(display), use_container_width=True, hide_index=True)
         st.caption(f"원본 데이터: [KBO 팀 순위]({KBO_URLS['standings']})  |  [타자 기본]({KBO_URLS['hitter_basic1']})  |  [투수 기본]({KBO_URLS['pitcher_basic1']})")
+
+        with st.expander("🔎 데이터 수집 디버그", expanded=False):
+            try:
+                st.write({
+                    '타자기본': None if df_hitter is None else df_hitter.shape,
+                    '타자고급': None if df_hitter_adv is None else df_hitter_adv.shape,
+                    '투수기본': None if df_pitcher is None else df_pitcher.shape,
+                    '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
+                    '순위': None if df_standings is None else df_standings.shape,
+                })
+                dbg_cols = st.columns(5)
+                with dbg_cols[0]:
+                    st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
+                with dbg_cols[1]:
+                    st.caption('타자고급 head'); st.write(None if df_hitter_adv is None else df_hitter_adv.head())
+                with dbg_cols[2]:
+                    st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
+                with dbg_cols[3]:
+                    st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
+                with dbg_cols[4]:
+                    st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
+            except Exception as e:
+                st.write(f"디버그 출력 중 오류: {e}")
 
     with tab2:
         st.header("🏟️ 팀별 기록")
