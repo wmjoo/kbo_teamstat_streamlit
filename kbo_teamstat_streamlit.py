@@ -1,4 +1,5 @@
 # kbo_teamstat_streamlit.py
+from io import StringIO
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -285,8 +286,9 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.content, "html.parser")
+        # read_html 경고 방지: StringIO로 감싼 literal HTML 사용
         try:
-            tables = pd.read_html(r.text)
+            tables = pd.read_html(StringIO(r.text))
             if tables:
                 return tables[0], soup
         except Exception:
@@ -296,7 +298,7 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
             return None, soup
         rows = []
         for tr in table.find_all("tr"):
-            cells = tr.find_all(["th","td"])
+            cells = tr.find_all(["th", "td"])
             if not cells:
                 continue
             rows.append([c.get_text(strip=True) for c in cells])
@@ -428,6 +430,9 @@ def monte_carlo_expected_wins(p: float, n_games: int, n_sims: int = 10_000) -> f
     return float(wins.mean())
 
 def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: int = 100_000) -> dict:
+    """
+    피타고리안 승률 기반 우승 확률 계산(빈 DF/팀 수 0/잔여경기 0 전부 방어).
+    """
     if teams_df is None or teams_df.empty:
         st.warning("시뮬레이션 대상 팀 데이터가 없습니다.")
         return {}
@@ -439,27 +444,29 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
         return {}
 
     df = teams_df.copy()
+    # 타입 정리
     df["잔여경기"] = pd.to_numeric(df["잔여경기"], errors="coerce").fillna(0).astype(int).clip(lower=0)
+    df["승"] = pd.to_numeric(df["승"], errors="coerce").fillna(0).astype(int)
+    df["p_wpct"] = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).astype(float)
+
+    # 팀명 정규화
     df = normalize_team_names(df)
 
-    mask_valid = df["잔여경기"].ge(0) & df["p_wpct"].apply(lambda x: isinstance(x, (int, float, np.floating)))
-    df = df.loc[mask_valid].reset_index(drop=True)
-    if df.empty:
+    # 유효 팀만(수치형 NaN 제거)
+    df = df.loc[df["p_wpct"].notna() & df["승"].notna() & df["잔여경기"].notna()].reset_index(drop=True)
+    T = len(df)
+    if T == 0:
         st.warning("유효한 팀 데이터가 없어 시뮬레이션을 생략합니다.")
         return {}
 
     names = df["팀명"].tolist()
-    current_wins = pd.to_numeric(df["승"], errors="coerce").fillna(0).to_numpy(dtype=int)
-    p = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    current_wins = df["승"].to_numpy(dtype=int)
+    p = df["p_wpct"].to_numpy(dtype=float)
     n_remain = df["잔여경기"].to_numpy(dtype=int)
 
-    T = len(names)
-    if T == 0:
-        st.warning("유효한 팀 수가 0입니다.")
-        return {}
-
+    # 잔여경기 전체 0인 경우: 현재 승수 기준
     if np.all(n_remain == 0):
-        winners = {n: 0 for n in names}
+        winners = {n: 0.0 for n in names}
         winners[names[int(np.argmax(current_wins))]] = 100.0
         st.info("모든 팀의 잔여 경기가 0입니다. 현재 승수 기준으로 우승 확률을 산출했습니다.")
         return winners
@@ -468,26 +475,32 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
     prog = st.progress(0.0)
     text = st.empty()
 
+    # 배치 처리로 메모리/속도 균형
     batch = 10_000
     n_batches = int(np.ceil(num_simulations / batch))
 
     for b in range(n_batches):
         this_batch = batch if (b + 1) * batch <= num_simulations else (num_simulations - b * batch)
-
-        sim = np.empty((this_batch, T), dtype=int)
-        for t in range(T):
-            if n_remain[t] <= 0 or p[t] <= 0.0:
-                sim[:, t] = 0
-            elif p[t] >= 1.0:
-                sim[:, t] = n_remain[t]
-            else:
-                sim[:, t] = np.random.binomial(n=n_remain[t], p=p[t], size=this_batch)
-
-        final_wins = sim + current_wins
-        if final_wins.size == 0:
+        if this_batch <= 0:
             continue
 
-        idx = np.argmax(final_wins, axis=1)
+        # (B, T) 배열을 "열(팀)별"로 생성 → n,p가 벡터여도 안전
+        sim = np.empty((this_batch, T), dtype=int)
+        for t in range(T):
+            nt = int(n_remain[t]); pt = float(p[t])
+            if nt <= 0 or pt <= 0.0:
+                sim[:, t] = 0
+            elif pt >= 1.0:
+                sim[:, t] = nt
+            else:
+                sim[:, t] = np.random.binomial(n=nt, p=pt, size=this_batch)
+
+        final_wins = sim + current_wins  # (B, T)
+        if final_wins.size == 0:
+            # 안전망: T==0 또는 B==0
+            continue
+
+        idx = np.argmax(final_wins, axis=1)  # (B,)
         for i in idx:
             wins_count[names[int(i)]] += 1
 
@@ -500,6 +513,9 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
     return {k: v / num_simulations * 100.0 for k, v in wins_count.items()}
 
 def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int = 50_000) -> dict:
+    """
+    상위 5팀 플레이오프 진출 확률(빈 DF/팀 수 < 5/잔여경기 0 방어).
+    """
     if teams_df is None or teams_df.empty:
         st.warning("시뮬레이션 대상 팀 데이터가 없습니다.")
         return {}
@@ -512,23 +528,21 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
 
     df = teams_df.copy()
     df["잔여경기"] = pd.to_numeric(df["잔여경기"], errors="coerce").fillna(0).astype(int).clip(lower=0)
-    df = normalize_team_names(df)
+    df["승"] = pd.to_numeric(df["승"], errors="coerce").fillna(0).astype(int)
+    df["p_wpct"] = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).astype(float)
 
-    mask_valid = df["잔여경기"].ge(0) & df["p_wpct"].apply(lambda x: isinstance(x, (int, float, np.floating)))
-    df = df.loc[mask_valid].reset_index(drop=True)
-    if df.empty:
+    df = normalize_team_names(df)
+    df = df.loc[df["p_wpct"].notna() & df["승"].notna() & df["잔여경기"].notna()].reset_index(drop=True)
+
+    T = len(df)
+    if T == 0:
         st.warning("유효한 팀 데이터가 없어 시뮬레이션을 생략합니다.")
         return {}
 
     names = df["팀명"].tolist()
-    current_wins = pd.to_numeric(df["승"], errors="coerce").fillna(0).to_numpy(dtype=int)
-    p = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    current_wins = df["승"].to_numpy(dtype=int)
+    p = df["p_wpct"].to_numpy(dtype=float)
     n_remain = df["잔여경기"].to_numpy(dtype=int)
-
-    T = len(names)
-    if T == 0:
-        st.warning("유효한 팀 수가 0입니다.")
-        return {}
 
     top_k = min(5, T)
     po_counts = {n: 0 for n in names}
@@ -540,21 +554,24 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
 
     for b in range(n_batches):
         this_batch = batch if (b + 1) * batch <= num_simulations else (num_simulations - b * batch)
+        if this_batch <= 0:
+            continue
 
         sim = np.empty((this_batch, T), dtype=int)
         for t in range(T):
-            if n_remain[t] <= 0 or p[t] <= 0.0:
+            nt = int(n_remain[t]); pt = float(p[t])
+            if nt <= 0 or pt <= 0.0:
                 sim[:, t] = 0
-            elif p[t] >= 1.0:
-                sim[:, t] = n_remain[t]
+            elif pt >= 1.0:
+                sim[:, t] = nt
             else:
-                sim[:, t] = np.random.binomial(n=n_remain[t], p=p[t], size=this_batch)
+                sim[:, t] = np.random.binomial(n=nt, p=pt, size=this_batch)
 
         final_wins = sim + current_wins
         if final_wins.size == 0:
             continue
 
-        # 상위 k팀 인덱스(빠른 선택)
+        # 빠른 상위 선택
         topk_idx = np.argpartition(-final_wins, kth=top_k - 1, axis=1)[:, :top_k]
         rows = np.arange(final_wins.shape[0])[:, None]
         ordered = topk_idx[rows, np.argsort(-final_wins[rows, topk_idx], axis=1)]
@@ -570,6 +587,21 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
     prog.progress(1.0)
     text.text("플레이오프 확률 계산 완료!")
     return {k: v / num_simulations * 100.0 for k, v in po_counts.items()}
+
+def _validate_sim_inputs(df_final: pd.DataFrame) -> bool:
+    """시뮬 시작 전 입력 검증. 문제가 있으면 사용자에게 원인 표시하고 False."""
+    need = {"팀명", "승", "p_wpct", "잔여경기"}
+    if df_final is None or df_final.empty:
+        st.error("시뮬레이션 입력이 비어 있습니다(df_final).")
+        return False
+    miss = [c for c in need if c not in df_final.columns]
+    if miss:
+        st.error(f"시뮬레이션 필수 컬럼 누락: {', '.join(miss)}")
+        return False
+    if df_final["팀명"].isna().all():
+        st.error("팀명 컬럼이 비어 있어 시뮬레이션을 수행할 수 없습니다.")
+        return False
+    return True
 
 # -----------------------------
 # 메인
@@ -720,6 +752,15 @@ def main():
             championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 5_000, 50_000, 5_000, step=5_000)
         with c2:
             playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5_000, 50_000, 5_000, step=5_000)
+
+        if 'df_final' in st.session_state:
+            with st.expander("🔧 시뮬레이션 입력 디버그", expanded=False):
+                df_dbg = st.session_state['df_final'].copy()
+                st.write("입력 DF 샘플:", df_dbg.head(10))
+                st.write("행/열:", df_dbg.shape)
+                st.write("필수 컬럼 존재 여부:", {c: (c in df_dbg.columns) for c in ["팀명","승","p_wpct","잔여경기"]})
+                st.write("결측치 개수:", df_dbg[["팀명","승","p_wpct","잔여경기"]].isna().sum())
+
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
