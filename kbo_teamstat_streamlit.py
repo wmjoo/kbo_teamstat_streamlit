@@ -277,7 +277,7 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
             st.error("데이터 추가 실패:\n" + _format_gspread_error(e))
             return
 
-        st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
+        # st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
     except Exception as e:
         st.error("Google Sheets 저장 중 알 수 없는 오류:\n" + _format_gspread_error(e))
 
@@ -1166,7 +1166,7 @@ def main():
 
         st.session_state['df_final'] = df_final.copy()
 
-        st.subheader("📊 현재 순위 및 예측 분석")
+        # st.subheader("📊 현재 순위 및 예측 분석")
         # 필요한 컬럼이 없으면 빈 값으로 채워 안전하게 표시
         _needed = ['순위','팀명','경기','승','패','무','승률','게임차','최근10경기','R','RA','p_wpct','최종기대승수_피타고리안기반']
         for _c in _needed:
@@ -1294,7 +1294,7 @@ def main():
                 combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
                 combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
 
-                st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
+                # st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
                 cc1, cc2 = st.columns(2)
                 with cc1:
                     disp = clean_dataframe_for_display(combined).rename(
@@ -1304,14 +1304,14 @@ def main():
                 with cc2:
                     fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
                                  color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
-                    fig.update_layout(xaxis_tickangle=-45)
+                    fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     st.plotly_chart(fig, use_container_width=True)
 
                 fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
                               color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
-                fig2.update_layout(xaxis_tickangle=-45)
+                fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
                 fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 st.plotly_chart(fig2, use_container_width=True)
