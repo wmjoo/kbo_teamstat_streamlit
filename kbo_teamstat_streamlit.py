@@ -17,27 +17,52 @@ def get_gsheet_client():
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",
         ]
-        gcp_dict = st.secrets["gcp_service_account"]  # secrets.toml에서 가져옴
-        # st.write(gcp_dict)
-        # private_key가 문자열인지 확인하고 필요시 처리
-        if 'private_key' in gcp_dict:
-            private_key = gcp_dict['private_key']
-            if isinstance(private_key, str):
-                # 개행 문자 처리
-                private_key = private_key.replace('\\n', '\n')
-                # 추가적인 개행 문자 처리
-                private_key = private_key.replace('\\r\\n', '\n')
-                private_key = private_key.replace('\\r', '\n')
-                # PEM 형식 확인 및 수정
-                if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
-                    st.warning("private_key 형식이 올바르지 않습니다.")
-                    return None
-                gcp_dict['private_key'] = private_key
-        
-        credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
-        return gspread.authorize(credentials)
+
+        # secrets 존재 확인
+        if "gcp_service_account" not in st.secrets:
+            st.error("Streamlit secrets에 'gcp_service_account' 설정이 없습니다. .streamlit/secrets.toml을 확인하세요.")
+            return None
+
+        gcp_dict = dict(st.secrets["gcp_service_account"])  # 복사본 사용
+
+        # 필수 키 존재 확인
+        required_keys = [
+            "type",
+            "project_id",
+            "private_key_id",
+            "private_key",
+            "client_email",
+            "client_id",
+            "token_uri",
+        ]
+        missing = [k for k in required_keys if k not in gcp_dict or not gcp_dict[k]]
+        if missing:
+            st.error(f"gcp_service_account 누락 키: {', '.join(missing)}")
+            return None
+
+        # private_key 개행 및 형식 정리
+        private_key = gcp_dict.get('private_key', '')
+        if isinstance(private_key, str):
+            private_key = private_key.replace('\\n', '\n').replace('\\r\\n', '\n').replace('\\r', '\n')
+        if not str(private_key).startswith('-----BEGIN PRIVATE KEY-----'):
+            st.error("gcp_service_account.private_key 형식이 올바르지 않습니다. PEM 헤더를 포함해야 합니다.")
+            return None
+        gcp_dict['private_key'] = private_key
+
+        try:
+            credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
+        except Exception as cred_err:
+            st.error(f"서비스 계정 자격 증명 생성 실패: {cred_err}")
+            return None
+
+        try:
+            client = gspread.authorize(credentials)
+            return client
+        except Exception as auth_err:
+            st.error(f"gspread 인증 실패: {auth_err}")
+            return None
     except Exception as e:
-        # 에러를 표시하지 않고 조용히 None 반환
+        st.error(f"Google Sheets 클라이언트 초기화 중 알 수 없는 오류: {e}")
         return None
 
 def safe_dataframe_display(df, use_container_width=True, hide_index=True):
