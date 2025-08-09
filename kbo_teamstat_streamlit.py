@@ -1,4 +1,4 @@
-# app.py
+# kbo_teamstat_streamlit.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -138,7 +138,6 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
             st.error("구글 시트 클라이언트를 초기화할 수 없습니다.\n원인 진단:\n" + _diagnose_gsheet_setup())
             return
 
-        # 대상 스프레드시트 파악
         cfg = {}
         try:
             cfg = st.secrets.get("gsheet", {}) or {}
@@ -150,7 +149,6 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
         if not spreadsheet_id and spreadsheet_url:
             spreadsheet_id = _extract_sheet_id_from_url(spreadsheet_url)
 
-        # 열기/생성
         if spreadsheet_id:
             try:
                 sh = client.open_by_key(spreadsheet_id)
@@ -186,11 +184,9 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
                 st.error("워크시트 생성 실패:\n" + _format_gspread_error(e))
                 return
 
-        # 타임스탬프 부착
         df_out = df_result.copy()
         df_out.insert(0, "timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-        # 새 시트면 헤더 추가
         if created_new_ws:
             try:
                 ws.append_row(df_out.columns.tolist(), value_input_option="USER_ENTERED")
@@ -221,21 +217,40 @@ def safe_dataframe_display(df: pd.DataFrame, use_container_width=True, hide_inde
         st.write("원본 형태로 표시합니다:")
         st.write(df)
 
+def normalize_team_names(df: pd.DataFrame, col: str = "팀명") -> pd.DataFrame:
+    """팀명 컬럼 공백/비가시문자 제거 및 표준화."""
+    if df is not None and not df.empty and col in df.columns:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace(r"\s+", "", regex=True)
+            .str.strip()
+        )
+    return df
+
 def clean_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """표시용 정리: IP 문자열 유지, 수치 컬럼 반올림 후 문자열화(Arrow 호환)."""
     try:
         dfc = df.copy()
-        if 'IP' in dfc.columns:
-            dfc['IP'] = dfc['IP'].astype(str)
+        if "IP" in dfc.columns:
+            dfc["IP"] = dfc["IP"].astype(str)
+
         for c in dfc.columns:
-            if c not in ['팀명','순위','최근10경기']:
-                try:
-                    dfc[c] = pd.to_numeric(dfc[c], errors='ignore')
-                except Exception:
-                    pass
+            if c in ("팀명", "순위", "최근10경기"):
+                continue
+            try:
+                dfc[c] = pd.to_numeric(dfc[c])
+            except Exception:
+                continue
+
         for c in dfc.columns:
-            if c not in ['팀명','순위','최근10경기']:
-                if pd.api.types.is_float_dtype(dfc[c]):
-                    dfc[c] = dfc[c].round(3).astype(str)
+            if c in ("팀명", "순위", "최근10경기"):
+                continue
+            if pd.api.types.is_float_dtype(dfc[c]):
+                dfc[c] = dfc[c].round(3).astype(str)
+            elif pd.api.types.is_integer_dtype(dfc[c]):
+                dfc[c] = dfc[c].astype(str)
+
         return dfc
     except Exception as e:
         st.error(f"표시 정리 오류: {e}")
@@ -248,20 +263,17 @@ def _parse_ip_to_decimal(ip_str: str) -> float | None:
     s = str(ip_str).strip()
     if not s:
         return None
-    # 패턴: "123 2/3"
     m = re.match(r"^(\d+)\s+(\d)\/3$", s)
     if m:
         whole = float(m.group(1)); frac = int(m.group(2))/3.0
         return round(whole + frac, 4)
-    # "123.1" or "123.2" 를 1/3, 2/3로 해석하는 케이스 존재(사이트 표기)
     m2 = re.match(r"^(\d+)\.(\d)$", s)
     if m2:
         whole = float(m2.group(1)); tenths = int(m2.group(2))
-        if tenths in (1,2):  # 0.1=1/3, 0.2=2/3
+        if tenths in (1,2):
             frac = tenths/3.0
             return round(whole + frac, 4)
         return float(s)
-    # 정수/일반 소수
     try:
         return float(s)
     except Exception:
@@ -273,14 +285,12 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.content, "html.parser")
-        # 1) read_html 시도
         try:
             tables = pd.read_html(r.text)
             if tables:
                 return tables[0], soup
         except Exception:
             pass
-        # 2) soup 기반 수동 파싱
         table = soup.find("table")
         if not table:
             return None, soup
@@ -292,7 +302,6 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
             rows.append([c.get_text(strip=True) for c in cells])
         if not rows:
             return None, soup
-        # 헤더 추정: 첫 행
         df = pd.DataFrame(rows[1:], columns=rows[0])
         return df, soup
     except Exception:
@@ -308,17 +317,11 @@ def scrape_kbo_team_batting_stats():
     if df is None or df.empty:
         st.error("타자 기본 기록 테이블을 찾을 수 없습니다.")
         return None
-    # 팀 행만 필터
     df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
-    # 표준 컬럼 구성
-    # 사이트 업데이트 시 헤더가 변할 수 있어 위치 기반 매핑
-    # 예상: [팀명, AVG, G, PA, AB, R, H, 2B, 3B, HR, TB, RBI, SAC, SF]
     cols = ['팀명','AVG','G','PA','AB','R','H','2B','3B','HR','TB','RBI','SAC','SF']
-    # 현재 df 컬럼 수 체크 후 슬라이스/리네임
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
     df.columns = cols[:take]
-    # 숫자화 시도
     for c in df.columns:
         if c != '팀명':
             df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -334,7 +337,6 @@ def scrape_kbo_team_batting_stats_advanced():
         st.error("타자 고급 기록 테이블을 찾을 수 없습니다.")
         return None
     df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
-    # 예상 헤더 샘플: 팀명, AVG, BB, IBB, HBP, SO, GDP, SLG, OBP, OPS, MH, RISP
     cols = ['팀명','AVG','BB','IBB','HBP','SO','GDP','SLG','OBP','OPS','MH','RISP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -354,17 +356,13 @@ def scrape_kbo_team_pitching_stats():
         st.error("투수 기본 기록 테이블을 찾을 수 없습니다.")
         return None
     df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
-    # 예상 헤더: 팀명, ERA, G, W, L, SV, HLD, WPCT, IP, H, HR, BB, HBP, SO, R, ER, WHIP
     cols = ['팀명','ERA','G','W','L','SV','HLD','WPCT','IP','H','HR','BB','HBP','SO','R','ER','WHIP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
     df.columns = cols[:take]
-    # IP만 특수 처리
     if 'IP' in df.columns:
         df['IP_decimal'] = df['IP'].apply(_parse_ip_to_decimal)
-        # 표시 안정성을 위해 문자열 컬럼도 유지
         df['IP'] = df['IP'].astype(str)
-    # 수치화
     for c in df.columns:
         if c not in ['팀명','IP']:
             df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -380,7 +378,6 @@ def scrape_kbo_team_pitching_stats_advanced():
         st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
         return None
     df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
-    # 예상 헤더: 팀명, ERA, CG, SHO, QS, BSV, TBF, NP, AVG, 2B, 3B, SAC, SF, IBB, WP, BK
     cols = ['팀명','ERA','CG','SHO','QS','BSV','TBF','NP','AVG','2B','3B','SAC','SF','IBB','WP','BK']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -399,21 +396,17 @@ def scrape_kbo_standings():
     date_info = None
     if soup:
         all_texts = soup.get_text("\n")
-        # (YYYY년 MM월DD일 기준) 패턴
         m = re.search(r"\(\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*기준\)", all_texts)
         if m:
             date_info = m.group(0)
     if df is None or df.empty:
         st.error("순위 테이블을 찾을 수 없습니다.")
         return None, date_info
-    # 팀 필터
-    # 예상 헤더: [팀명, 경기, 승, 패, 무, 승률, 게임차, 최근10경기, ...]
     df = df[df.iloc[:,0].isin(['LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움'])].copy()
     cols = ['팀명','경기','승','패','무','승률','게임차','최근10경기']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
     df.columns = cols[:take]
-    # 수치화
     for c in ['경기','승','패','무','승률']:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -422,73 +415,161 @@ def scrape_kbo_standings():
     return df, date_info
 
 # -----------------------------
-# 시뮬레이션(고속)
+# 시뮬레이션(고속/안전)
 # -----------------------------
 def monte_carlo_expected_wins(p: float, n_games: int, n_sims: int = 10_000) -> float:
-    """Binomial 기반 기대 승수(평균)"""
     if n_games <= 0:
         return 0.0
+    if p <= 0.0:
+        return 0.0
+    if p >= 1.0:
+        return float(n_games)
     wins = np.random.binomial(n=n_games, p=float(p), size=n_sims)
     return float(wins.mean())
 
-def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations=100_000):
-    """피타고리안 승률 기반으로 각 팀 우승확률 계산"""
-    names = teams_df['팀명'].tolist()
-    current_wins = teams_df['승'].to_numpy()
-    p = teams_df['p_wpct'].to_numpy().astype(float)
-    n_remain = teams_df['잔여경기'].to_numpy().astype(int)
+def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: int = 100_000) -> dict:
+    if teams_df is None or teams_df.empty:
+        st.warning("시뮬레이션 대상 팀 데이터가 없습니다.")
+        return {}
+
+    required = {"팀명", "승", "p_wpct", "잔여경기"}
+    missing = [c for c in required if c not in teams_df.columns]
+    if missing:
+        st.error(f"시뮬레이션 필수 컬럼 누락: {', '.join(missing)}")
+        return {}
+
+    df = teams_df.copy()
+    df["잔여경기"] = pd.to_numeric(df["잔여경기"], errors="coerce").fillna(0).astype(int).clip(lower=0)
+    df = normalize_team_names(df)
+
+    mask_valid = df["잔여경기"].ge(0) & df["p_wpct"].apply(lambda x: isinstance(x, (int, float, np.floating)))
+    df = df.loc[mask_valid].reset_index(drop=True)
+    if df.empty:
+        st.warning("유효한 팀 데이터가 없어 시뮬레이션을 생략합니다.")
+        return {}
+
+    names = df["팀명"].tolist()
+    current_wins = pd.to_numeric(df["승"], errors="coerce").fillna(0).to_numpy(dtype=int)
+    p = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    n_remain = df["잔여경기"].to_numpy(dtype=int)
+
+    T = len(names)
+    if T == 0:
+        st.warning("유효한 팀 수가 0입니다.")
+        return {}
+
+    if np.all(n_remain == 0):
+        winners = {n: 0 for n in names}
+        winners[names[int(np.argmax(current_wins))]] = 100.0
+        st.info("모든 팀의 잔여 경기가 0입니다. 현재 승수 기준으로 우승 확률을 산출했습니다.")
+        return winners
 
     wins_count = {n: 0 for n in names}
-    prog = st.progress(0.0); text = st.empty()
+    prog = st.progress(0.0)
+    text = st.empty()
 
     batch = 10_000
     n_batches = int(np.ceil(num_simulations / batch))
+
     for b in range(n_batches):
-        this_batch = batch if (b+1)*batch <= num_simulations else (num_simulations - b*batch)
-        # 각 팀별 잔여경기를 한 번에 샘플링
-        sim_wins = np.array([np.random.binomial(n=n_remain, p=p) for _ in range(this_batch)])  # shape: (B, T)
-        final_wins = sim_wins + current_wins  # (B, T)
-        # 배치 내 챔피언 인덱스
-        idx = final_wins.argmax(axis=1)  # (B,)
+        this_batch = batch if (b + 1) * batch <= num_simulations else (num_simulations - b * batch)
+
+        sim = np.empty((this_batch, T), dtype=int)
+        for t in range(T):
+            if n_remain[t] <= 0 or p[t] <= 0.0:
+                sim[:, t] = 0
+            elif p[t] >= 1.0:
+                sim[:, t] = n_remain[t]
+            else:
+                sim[:, t] = np.random.binomial(n=n_remain[t], p=p[t], size=this_batch)
+
+        final_wins = sim + current_wins
+        if final_wins.size == 0:
+            continue
+
+        idx = np.argmax(final_wins, axis=1)
         for i in idx:
             wins_count[names[int(i)]] += 1
 
         if b % 2 == 0:
-            prog.progress((b+1)/n_batches)
-            text.text(f"우승 확률 계산 중... {min((b+1)*batch, num_simulations):,}/{num_simulations:,}")
+            prog.progress((b + 1) / n_batches)
+            text.text(f"우승 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
 
-    prog.progress(1.0); text.text("우승 확률 계산 완료!")
-    return {k: v/num_simulations*100 for k, v in wins_count.items()}
+    prog.progress(1.0)
+    text.text("우승 확률 계산 완료!")
+    return {k: v / num_simulations * 100.0 for k, v in wins_count.items()}
 
-def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations=50_000):
-    """상위 5팀 플레이오프 진출 확률 계산"""
-    names = teams_df['팀명'].tolist()
-    current_wins = teams_df['승'].to_numpy()
-    p = teams_df['p_wpct'].to_numpy().astype(float)
-    n_remain = teams_df['잔여경기'].to_numpy().astype(int)
+def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int = 50_000) -> dict:
+    if teams_df is None or teams_df.empty:
+        st.warning("시뮬레이션 대상 팀 데이터가 없습니다.")
+        return {}
 
+    required = {"팀명", "승", "p_wpct", "잔여경기"}
+    missing = [c for c in required if c not in teams_df.columns]
+    if missing:
+        st.error(f"시뮬레이션 필수 컬럼 누락: {', '.join(missing)}")
+        return {}
+
+    df = teams_df.copy()
+    df["잔여경기"] = pd.to_numeric(df["잔여경기"], errors="coerce").fillna(0).astype(int).clip(lower=0)
+    df = normalize_team_names(df)
+
+    mask_valid = df["잔여경기"].ge(0) & df["p_wpct"].apply(lambda x: isinstance(x, (int, float, np.floating)))
+    df = df.loc[mask_valid].reset_index(drop=True)
+    if df.empty:
+        st.warning("유효한 팀 데이터가 없어 시뮬레이션을 생략합니다.")
+        return {}
+
+    names = df["팀명"].tolist()
+    current_wins = pd.to_numeric(df["승"], errors="coerce").fillna(0).to_numpy(dtype=int)
+    p = pd.to_numeric(df["p_wpct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    n_remain = df["잔여경기"].to_numpy(dtype=int)
+
+    T = len(names)
+    if T == 0:
+        st.warning("유효한 팀 수가 0입니다.")
+        return {}
+
+    top_k = min(5, T)
     po_counts = {n: 0 for n in names}
-    prog = st.progress(0.0); text = st.empty()
+    prog = st.progress(0.0)
+    text = st.empty()
 
     batch = 10_000
     n_batches = int(np.ceil(num_simulations / batch))
+
     for b in range(n_batches):
-        this_batch = batch if (b+1)*batch <= num_simulations else (num_simulations - b*batch)
-        sim_wins = np.array([np.random.binomial(n=n_remain, p=p) for _ in range(this_batch)])  # (B, T)
-        final_wins = sim_wins + current_wins  # (B, T)
-        # 상위 5팀 index
-        top5_idx = np.argsort(-final_wins, axis=1)[:, :5]  # (B, 5)
-        # 카운트
-        for row in top5_idx:
+        this_batch = batch if (b + 1) * batch <= num_simulations else (num_simulations - b * batch)
+
+        sim = np.empty((this_batch, T), dtype=int)
+        for t in range(T):
+            if n_remain[t] <= 0 or p[t] <= 0.0:
+                sim[:, t] = 0
+            elif p[t] >= 1.0:
+                sim[:, t] = n_remain[t]
+            else:
+                sim[:, t] = np.random.binomial(n=n_remain[t], p=p[t], size=this_batch)
+
+        final_wins = sim + current_wins
+        if final_wins.size == 0:
+            continue
+
+        # 상위 k팀 인덱스(빠른 선택)
+        topk_idx = np.argpartition(-final_wins, kth=top_k - 1, axis=1)[:, :top_k]
+        rows = np.arange(final_wins.shape[0])[:, None]
+        ordered = topk_idx[rows, np.argsort(-final_wins[rows, topk_idx], axis=1)]
+
+        for row in ordered:
             for i in row:
                 po_counts[names[int(i)]] += 1
 
         if b % 2 == 0:
-            prog.progress((b+1)/n_batches)
-            text.text(f"플레이오프 확률 계산 중... {min((b+1)*batch, num_simulations):,}/{num_simulations:,}")
+            prog.progress((b + 1) / n_batches)
+            text.text(f"플레이오프 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
 
-    prog.progress(1.0); text.text("플레이오프 확률 계산 완료!")
-    return {k: v/num_simulations*100 for k, v in po_counts.items()}
+    prog.progress(1.0)
+    text.text("플레이오프 확률 계산 완료!")
+    return {k: v / num_simulations * 100.0 for k, v in po_counts.items()}
 
 # -----------------------------
 # 메인
@@ -507,6 +588,13 @@ def main():
     if any(x is None for x in [df_hitter, df_hitter_adv, df_pitcher, df_pitcher_adv, df_standings]):
         st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
         return
+
+    # 팀명 정규화(병합 전)
+    df_hitter = normalize_team_names(df_hitter)
+    df_hitter_adv = normalize_team_names(df_hitter_adv)
+    df_pitcher = normalize_team_names(df_pitcher)
+    df_pitcher_adv = normalize_team_names(df_pitcher_adv)
+    df_standings = normalize_team_names(df_standings)
 
     if date_info:
         st.markdown(
@@ -530,25 +618,29 @@ def main():
 
     with tab1:
         # 피타고리안 승률 계산
-        df_runs = pd.merge(df_hitter[['팀명','R']], df_pitcher[['팀명','R']], on='팀명', how='left', suffixes=('', '_A'))
+        df_runs = pd.merge(
+            df_hitter[['팀명','R']],
+            df_pitcher[['팀명','R']],
+            on='팀명', how='left', suffixes=('', '_A')
+        )
         df_runs.rename(columns={'R': 'R', 'R_A': 'RA'}, inplace=True)
         p_n = 1.834
         df_runs['p_wpct'] = (df_runs['R']**p_n) / ((df_runs['R']**p_n) + (df_runs['RA']**p_n))
         df_runs['p_wpct'] = df_runs['p_wpct'].round(4)
 
         df_final = pd.merge(df_standings, df_runs[['팀명','p_wpct']], on='팀명', how='left')
-        df_final['잔여경기'] = 144 - df_final['경기']
-        df_final['잔여경기'] = df_final['잔여경기'].clip(lower=0)
+        df_final['잔여경기'] = (144 - df_final['경기']).clip(lower=0)
 
-        # 기본 기대승수(빠른 binomial 평균 사용)
+        # 기본 기대승수
         np.random.seed(42)
-        exp_winrate = []
-        exp_pytha = []
-        for _, r in df_final.iterrows():
-            exp_winrate.append(monte_carlo_expected_wins(r['승률'], int(r['잔여경기']), 10_000))
-            exp_pytha.append(monte_carlo_expected_wins(r['p_wpct'], int(r['잔여경기']), 10_000))
-        df_final['기대승수_승률기반'] = exp_winrate
-        df_final['기대승수_피타고리안기반'] = exp_pytha
+        df_final['기대승수_승률기반'] = [
+            monte_carlo_expected_wins(p=float(r['승률']), n_games=int(r['잔여경기']), n_sims=10_000)
+            for _, r in df_final.iterrows()
+        ]
+        df_final['기대승수_피타고리안기반'] = [
+            monte_carlo_expected_wins(p=float(r['p_wpct']), n_games=int(r['잔여경기']), n_sims=10_000)
+            for _, r in df_final.iterrows()
+        ]
         df_final['최종기대승수_승률기반'] = (df_final['승'] + df_final['기대승수_승률기반']).round(1)
         df_final['최종기대승수_피타고리안기반'] = (df_final['승'] + df_final['기대승수_피타고리안기반']).round(1)
 
@@ -575,26 +667,26 @@ def main():
         with l:
             st.subheader("타격 상위 3팀")
             top3_avg = df_hitter_combined.nlargest(3, 'AVG')[['팀명','AVG']].reset_index(drop=True)
-            c = st.columns(3)
+            cols = st.columns(3)
             for i, row in top3_avg.iterrows():
-                c[i].metric(f"{i+1}위 {row['팀명']}", f"{row['AVG']:.3f}")
+                cols[i].metric(f"{i+1}위 {row['팀명']}", f"{row['AVG']:.3f}")
             st.write("**OPS 상위 3팀**")
             top3_ops = df_hitter_combined.nlargest(3, 'OPS')[['팀명','OPS']].reset_index(drop=True)
-            c = st.columns(3)
+            cols = st.columns(3)
             for i, row in top3_ops.iterrows():
-                c[i].metric(f"{i+1}위 {row['팀명']}", f"{row['OPS']:.3f}")
+                cols[i].metric(f"{i+1}위 {row['팀명']}", f"{row['OPS']:.3f}")
         with r:
             st.subheader("투수 상위 3팀")
             st.write("**ERA 상위 3팀 (낮은 순)**")
             top3_era = df_pitcher_combined.nsmallest(3, 'ERA')[['팀명','ERA']].reset_index(drop=True)
-            c = st.columns(3)
+            cols = st.columns(3)
             for i, row in enumerate(top3_era.itertuples(index=False)):
-                c[i].metric(f"{i+1}위 {row.팀명}", f"{row.ERA:.2f}")
+                cols[i].metric(f"{i+1}위 {row.팀명}", f"{row.ERA:.2f}")
             st.write("**WHIP 상위 3팀 (낮은 순)**")
             top3_whip = df_pitcher_combined.nsmallest(3, 'WHIP')[['팀명','WHIP']].reset_index(drop=True)
-            c = st.columns(3)
+            cols = st.columns(3)
             for i, row in enumerate(top3_whip.itertuples(index=False)):
-                c[i].metric(f"{i+1}위 {row.팀명}", f"{row.WHIP:.2f}")
+                cols[i].metric(f"{i+1}위 {row.팀명}", f"{row.WHIP:.2f}")
 
     with tab3:
         st.header("📊 시각화")
@@ -636,7 +728,6 @@ def main():
                 po = calculate_playoff_probability(df_final, playoff_simulations)
                 df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
 
-                # 시트 저장
                 log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
                 append_simulation_to_sheet(log_df, "SimulationLog")
 
@@ -686,7 +777,6 @@ def main():
                     st.info("아직 시뮬레이션 이력이 없습니다.")
                 else:
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'])
-                    # 팀별이 아니라 전체 평균 추이
                     df_sum = df_hist.groupby('timestamp', as_index=False).agg({
                         '우승확률_퍼센트':'mean',
                         '플레이오프진출확률_퍼센트':'mean'
