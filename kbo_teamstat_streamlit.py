@@ -1060,7 +1060,7 @@ def main():
             monte_carlo_expected_wins(
                 p=float(r['승률']) if pd.notna(r['승률']) else 0.0,
                 n_games=int(r['잔여경기']) if pd.notna(r['잔여경기']) else 0,
-                n_sims=10_000
+                n_sims=100_000
             )
             for _, r in df_final.iterrows()
         ]
@@ -1068,7 +1068,7 @@ def main():
             monte_carlo_expected_wins(
                 p=float(r['p_wpct']) if pd.notna(r['p_wpct']) else 0.0,
                 n_games=int(r['잔여경기']) if pd.notna(r['잔여경기']) else 0,
-                n_sims=10_000
+                n_sims=100_000
             )
             for _, r in df_final.iterrows()
         ]
@@ -1084,8 +1084,8 @@ def main():
             if _c not in df_final.columns:
                 df_final[_c] = pd.NA
         display = df_final[_needed].copy()
-        display.rename(columns={'p_wpct':'피타고리안승률','최종기대승수_피타고리안기반':'예상최종승수'}, inplace=True)
-        display['피타고리안승률'] = display['피타고리안승률'].round(4)
+        display.rename(columns={'p_wpct':'피타고리안','최종기대승수_피타고리안기반':'예상승수'}, inplace=True)
+        display['피타고리안'] = display['피타고리안'].round(4)
         safe_dataframe_display(clean_dataframe_for_display(display), use_container_width=True, hide_index=True)
         st.caption(f"원본 데이터: [KBO 팀 순위]({KBO_URLS['standings']})  |  [타자 기본]({KBO_URLS['hitter_basic1']})  |  [투수 기본]({KBO_URLS['pitcher_basic1']})")
 
