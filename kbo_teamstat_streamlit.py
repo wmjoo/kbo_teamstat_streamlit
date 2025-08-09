@@ -1485,8 +1485,8 @@ def main():
                 with st.expander("🔎 일자별 PO 확률", expanded=False):
                     st.subheader('일자별 PO 확률(%)')
                     safe_dataframe_display(pivot_po.round(2).reset_index(), use_container_width=True, hide_index=True)
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
             with st.expander("🔎 원본 데이터", expanded=False):
                 st.subheader("원본 로그")
