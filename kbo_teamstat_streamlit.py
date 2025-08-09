@@ -1196,17 +1196,9 @@ def main():
         df_final = st.session_state['df_final']
         c1, c2 = st.columns(2)
         with c1:
-            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 5_000, 50_000, 5_000, step=5_000)
+            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 10_000, 100_000, 50_000, step=10_000)
         with c2:
-            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5_000, 50_000, 5_000, step=5_000)
-
-        # if 'df_final' in st.session_state:
-        #     with st.expander("🔧 시뮬레이션 입력 디버그", expanded=False):
-        #         df_dbg = st.session_state['df_final'].copy()
-        #         st.write("입력 DF 샘플:", df_dbg.head(10))
-        #         st.write("행/열:", df_dbg.shape)
-        #         st.write("필수 컬럼 존재 여부:", {c: (c in df_dbg.columns) for c in ["팀명","승","p_wpct","잔여경기"]})
-        #         st.write("결측치 개수:", df_dbg[["팀명","승","p_wpct","잔여경기"]].isna().sum())
+            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 10_000, 100_000, 50_000, step=10_000)
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
