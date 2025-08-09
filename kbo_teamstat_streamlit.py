@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime
@@ -34,7 +36,39 @@ st.markdown("""
 # 상수/유틸
 # -----------------------------
 TEAM_NAMES = ['롯데', '삼성', 'LG', '한화', 'KIA', '두산', 'NC', 'KT', 'SSG', '키움']
-HEADERS = {'User-Agent': 'Mozilla/5.0'}
+HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/126.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.6,en;q=0.4',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Referer': 'https://www.koreabaseball.com/Record/Team/Default.aspx',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+}
+
+def _build_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        connect=3,
+        read=3,
+        backoff_factor=0.5,
+        status_forcelist=(403, 429, 500, 502, 503, 504),
+        allowed_methods=('GET', 'HEAD'),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.headers.update(HEADERS)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    return session
+
+SESSION = _build_session()
 
 def _diagnose_gsheet_setup() -> str:
     msgs = []
@@ -283,17 +317,32 @@ def _parse_ip_to_decimal(ip_str: str) -> float | None:
 def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | None]:
     """해당 페이지에서 첫 테이블을 DataFrame으로 읽고, soup도 반환."""
     try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
+        r = SESSION.get(url, timeout=15)
         r.raise_for_status()
-        soup = BeautifulSoup(r.content, "html.parser")
-        # read_html 경고 방지: StringIO로 감싼 literal HTML 사용
+        try:
+            if not r.encoding or r.encoding.lower() in ("iso-8859-1", "ascii"):
+                r.encoding = r.apparent_encoding or 'utf-8'
+        except Exception:
+            r.encoding = 'utf-8'
+        soup = BeautifulSoup(r.text, "html.parser")
+        # read_html: 여러 테이블 중 적절한 테이블 선택
         try:
             tables = pd.read_html(StringIO(r.text))
             if tables:
+                # '팀' 문자열이 포함된 헤더를 우선 선택
+                for t in tables:
+                    cols_join = "".join(map(str, list(t.columns)))
+                    if '팀' in cols_join or '팀명' in cols_join:
+                        return t, soup
                 return tables[0], soup
         except Exception:
             pass
         table = soup.find("table")
+        if not table:
+            try:
+                table = soup.select_one("table, table.tData, table.table, .record > table")
+            except Exception:
+                table = None
         if not table:
             return None, soup
         rows = []
@@ -309,6 +358,38 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
     except Exception:
         return None, None
 
+def _standardize_kbo_team_name(raw_name: str) -> str | None:
+    """페이지마다 다른 팀명 표기를 표준 팀명으로 통일.
+    예: 'SSG랜더스' → 'SSG', '키움히어로즈' → '키움', '기아' → 'KIA' 등
+    """
+    if raw_name is None:
+        return None
+    name = str(raw_name)
+    name = re.sub(r"\s+", "", name)
+    upper = name.upper()
+    # 명확한 토큰 우선
+    if 'LG' in upper:
+        return 'LG'
+    if 'DOOSAN' in upper or '두산' in name:
+        return '두산'
+    if 'SAMSUNG' in upper or '삼성' in name:
+        return '삼성'
+    if 'LOTTE' in upper or '롯데' in name:
+        return '롯데'
+    if 'HANHWA' in upper or '한화' in name:
+        return '한화'
+    if 'NC' in upper:
+        return 'NC'
+    if 'KT' in upper:
+        return 'KT'
+    if 'SSG' in upper or '랜더스' in name:
+        return 'SSG'
+    if 'KIWOOM' in upper or '키움' in name:
+        return '키움'
+    if 'KIA' in upper or '기아' in name:
+        return 'KIA'
+    return None
+
 # -----------------------------
 # 스크래핑 함수
 # -----------------------------
@@ -319,7 +400,12 @@ def scrape_kbo_team_batting_stats():
     if df is None or df.empty:
         st.error("타자 기본 기록 테이블을 찾을 수 없습니다.")
         return None
-    df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
+    # 팀명 표준화 후 필터링
+    try:
+        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+    except Exception:
+        pass
+    df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
     cols = ['팀명','AVG','G','PA','AB','R','H','2B','3B','HR','TB','RBI','SAC','SF']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -338,7 +424,11 @@ def scrape_kbo_team_batting_stats_advanced():
     if df is None or df.empty:
         st.error("타자 고급 기록 테이블을 찾을 수 없습니다.")
         return None
-    df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
+    try:
+        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+    except Exception:
+        pass
+    df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
     cols = ['팀명','AVG','BB','IBB','HBP','SO','GDP','SLG','OBP','OPS','MH','RISP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -357,7 +447,11 @@ def scrape_kbo_team_pitching_stats():
     if df is None or df.empty:
         st.error("투수 기본 기록 테이블을 찾을 수 없습니다.")
         return None
-    df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
+    try:
+        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+    except Exception:
+        pass
+    df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
     cols = ['팀명','ERA','G','W','L','SV','HLD','WPCT','IP','H','HR','BB','HBP','SO','R','ER','WHIP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -379,7 +473,11 @@ def scrape_kbo_team_pitching_stats_advanced():
     if df is None or df.empty:
         st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
         return None
-    df = df[df.iloc[:,0].isin(TEAM_NAMES)].copy()
+    try:
+        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+    except Exception:
+        pass
+    df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
     cols = ['팀명','ERA','CG','SHO','QS','BSV','TBF','NP','AVG','2B','3B','SAC','SF','IBB','WP','BK']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -404,7 +502,11 @@ def scrape_kbo_standings():
     if df is None or df.empty:
         st.error("순위 테이블을 찾을 수 없습니다.")
         return None, date_info
-    df = df[df.iloc[:,0].isin(['LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움'])].copy()
+    try:
+        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+    except Exception:
+        pass
+    df = df[df.iloc[:, 0].isin(['LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움'])].copy()
     cols = ['팀명','경기','승','패','무','승률','게임차','최근10경기']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -620,6 +722,29 @@ def main():
     if any(x is None for x in [df_hitter, df_hitter_adv, df_pitcher, df_pitcher_adv, df_standings]):
         st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
         return
+
+    with st.expander("🔎 데이터 수집 디버그", expanded=False):
+        try:
+            st.write({
+                '타자기본': None if df_hitter is None else df_hitter.shape,
+                '타자고급': None if df_hitter_adv is None else df_hitter_adv.shape,
+                '투수기본': None if df_pitcher is None else df_pitcher.shape,
+                '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
+                '순위': None if df_standings is None else df_standings.shape,
+            })
+            dbg_cols = st.columns(5)
+            with dbg_cols[0]:
+                st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
+            with dbg_cols[1]:
+                st.caption('타자고급 head'); st.write(None if df_hitter_adv is None else df_hitter_adv.head())
+            with dbg_cols[2]:
+                st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
+            with dbg_cols[3]:
+                st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
+            with dbg_cols[4]:
+                st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
+        except Exception as e:
+            st.write(f"디버그 출력 중 오류: {e}")
 
     # 팀명 정규화(병합 전)
     df_hitter = normalize_team_names(df_hitter)
