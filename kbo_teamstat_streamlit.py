@@ -91,8 +91,7 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
     try:
         client = get_gsheet_client()
         if client is None:
-            st.error("구글 시트 클라이언트를 초기화할 수 없습니다.")
-            # 조용히 실패 처리 (사용자에게 경고 메시지 표시하지 않음)
+            st.error("구글 시트 클라이언트를 초기화할 수 없습니다.; client is None")
             return
             
         sh = client.open("SimulationLog")  # 구글 시트 이름
@@ -630,12 +629,6 @@ def calculate_playoff_probability(teams_data, num_simulations=50000):
 def main():
     # 헤더
     st.markdown('<h1 class="main-header">⚾ KBO 팀 통계 분석기</h1>', unsafe_allow_html=True)
-    
-    # # 사이드바
-    # st.sidebar.title("📊 분석 옵션")
-    
-    # # 구글 시트 저장 옵션
-    # sheet_name = st.sidebar.text_input("구글 시트 저장 시트명", value="ChampionshipSimulation")
     
     # 데이터 로딩
     with st.spinner("실시간 KBO 데이터를 가져오는 중..."):
