@@ -250,6 +250,48 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
     except Exception as e:
         st.error("Google Sheets 저장 중 알 수 없는 오류:\n" + _format_gspread_error(e))
 
+def _open_log_worksheet(sheet_name: str = "SimulationLog"):
+    """append 시 사용한 동일한 규칙으로 로그 워크시트를 연다.
+    우선순위: secrets.gsheet.spreadsheet_id → secrets.gsheet.spreadsheet_url → 이름("KBO_Simulation_Log").
+    생성은 하지 않고, 없으면 None 반환.
+    """
+    try:
+        client = get_gsheet_client()
+        if client is None:
+            st.info("Google Sheets 연결이 설정되지 않았습니다. 이력을 불러올 수 없습니다.")
+            st.warning("진단 정보:\n" + _diagnose_gsheet_setup())
+            return None
+        cfg = {}
+        try:
+            cfg = st.secrets.get("gsheet", {}) or {}
+        except Exception:
+            pass
+        spreadsheet_id = cfg.get("spreadsheet_id")
+        spreadsheet_url = cfg.get("spreadsheet_url")
+        if not spreadsheet_id and spreadsheet_url:
+            spreadsheet_id = _extract_sheet_id_from_url(spreadsheet_url)
+        if spreadsheet_id:
+            try:
+                sh = client.open_by_key(spreadsheet_id)
+            except Exception as e:
+                st.error("스프레드시트(ID) 열기 실패:\n" + _format_gspread_error(e))
+                return None
+        else:
+            try:
+                sh = client.open("KBO_Simulation_Log")
+            except Exception:
+                # 생성은 하지 않음(읽기 탭)
+                st.info("로그 스프레드시트를 찾을 수 없습니다. 먼저 우승 확률 탭에서 시뮬을 실행해 저장하세요.")
+                return None
+        try:
+            return sh.worksheet(sheet_name)
+        except Exception:
+            st.info(f"'{sheet_name}' 워크시트를 찾을 수 없습니다. 시뮬 실행 후 다시 시도하세요.")
+            return None
+    except Exception as e:
+        st.error("로그 스프레드시트 접근 중 오류:\n" + _format_gspread_error(e))
+        return None
+
 def safe_dataframe_display(df: pd.DataFrame, use_container_width=True, hide_index=True):
     try:
         df_display = df.copy()
@@ -1245,33 +1287,59 @@ def main():
     with tab5:
         st.header("📅 시뮬레이션 이력")
         try:
-            client = get_gsheet_client()
-            if client is None:
-                st.info("Google Sheets 연결이 설정되지 않았습니다. 이력을 불러올 수 없습니다.")
-                st.warning("진단 정보:\n" + _diagnose_gsheet_setup())
-            else:
+            ws = _open_log_worksheet("SimulationLog")
+            if ws is None:
+                return
+            # 많은 행이 있을 수 있으므로 get_all_records 대신 get_all_values 후 DataFrame 변환
+            values = ws.get_all_values()
+            if not values or len(values) < 2:
+                st.info("아직 시뮬레이션 이력이 없습니다.")
+                return
+            header, rows = values[0], values[1:]
+            df_hist = pd.DataFrame(rows, columns=header)
+            # 스키마 정규화
+            rename_map = {
+                '우승확률_퍼센트': '우승',
+                '플레이오프진출확률_퍼센트': 'PO',
+                '팀명': '팀명',
+                'timestamp': 'timestamp',
+            }
+            for k, v in list(rename_map.items()):
+                if k not in df_hist.columns and v in df_hist.columns:
+                    # 이미 원하는 이름이면 스킵
+                    continue
+                if k in df_hist.columns:
+                    df_hist.rename(columns={k: v}, inplace=True)
+            # 타입 캐스팅
+            if 'timestamp' in df_hist.columns:
                 try:
-                    ws = client.open("KBO_Simulation_Log").worksheet("SimulationLog")
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], errors='coerce')
                 except Exception:
-                    st.info("아직 로그 시트가 없습니다. 우승 확률 탭에서 시뮬레이션을 실행해보세요.")
-                    return
-                history = ws.get_all_records()
-                df_hist = pd.DataFrame(history)
-                if df_hist.empty:
-                    st.info("아직 시뮬레이션 이력이 없습니다.")
-                else:
-                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'])
-                    df_sum = df_hist.groupby('timestamp', as_index=False).agg({
-                        '우승확률_퍼센트':'mean',
-                        '플레이오프진출확률_퍼센트':'mean'
-                    })
-                    fig = px.line(df_sum, x='timestamp',
-                                  y=['우승확률_퍼센트','플레이오프진출확률_퍼센트'],
-                                  title='일자별 평균 우승 / 플레이오프 확률', markers=True)
-                    fig.update_layout(xaxis_title="날짜", yaxis_title="확률(%)")
-                    st.plotly_chart(fig, use_container_width=True)
+                    pass
+            for col in ['우승', 'PO']:
+                if col in df_hist.columns:
+                    df_hist[col] = pd.to_numeric(df_hist[col], errors='coerce')
+            if df_hist.empty:
+                st.info("아직 시뮬레이션 이력이 없습니다.")
+                return
+            # 최근 N회 필터/집계 UI
+            col1, col2 = st.columns(2)
+            with col1:
+                last_n = st.number_input("최근 N회만 보기", min_value=10, max_value=5000, value=200, step=10)
+            with col2:
+                group_by_team = st.checkbox("팀별 평균 보기", value=True)
+            df_hist_sorted = df_hist.sort_values('timestamp').tail(int(last_n)) if 'timestamp' in df_hist else df_hist.tail(int(last_n))
+            st.dataframe(df_hist_sorted, use_container_width=True)
+            if group_by_team and '팀명' in df_hist_sorted.columns:
+                df_sum = df_hist_sorted.groupby('팀명', as_index=False).agg({'우승':'mean','PO':'mean'})
+                fig = px.bar(df_sum, x='팀명', y=['우승','PO'], barmode='group', title='최근 N회 평균 우승/PO 확률')
+                st.plotly_chart(fig, use_container_width=True)
+            elif 'timestamp' in df_hist_sorted.columns:
+                df_sum = df_hist_sorted.groupby('timestamp', as_index=False).agg({'우승':'mean','PO':'mean'})
+                fig = px.line(df_sum, x='timestamp', y=['우승','PO'], title='시간별 평균 우승/PO 확률', markers=True)
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.info(f"Google Sheets 연결에 문제가 있습니다. 이력을 불러올 수 없습니다. {e}")
+            st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
 if __name__ == "__main__":
     main()
