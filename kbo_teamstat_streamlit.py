@@ -1076,7 +1076,12 @@ def main():
         st.session_state['df_final'] = df_final.copy()
 
         st.subheader("📊 현재 순위 및 예측 분석")
-        display = df_final[['순위','팀명','경기','승','패','무','승률','게임차','최근10경기','p_wpct','최종기대승수_피타고리안기반']].copy()
+        # 필요한 컬럼이 없으면 빈 값으로 채워 안전하게 표시
+        _needed = ['순위','팀명','경기','승','패','무','승률','게임차','최근10경기','p_wpct','최종기대승수_피타고리안기반']
+        for _c in _needed:
+            if _c not in df_final.columns:
+                df_final[_c] = pd.NA
+        display = df_final[_needed].copy()
         display.rename(columns={'p_wpct':'피타고리안승률','최종기대승수_피타고리안기반':'예상최종승수'}, inplace=True)
         display['피타고리안승률'] = display['피타고리안승률'].round(4)
         safe_dataframe_display(clean_dataframe_for_display(display), use_container_width=True, hide_index=True)
