@@ -14,6 +14,7 @@ from gspread.exceptions import APIError as GspreadAPIError
 from google.oauth2.service_account import Credentials
 import plotly.express as px
 import plotly.graph_objects as go
+from zoneinfo import ZoneInfo
 
 # -----------------------------
 # 페이지/스타일
@@ -228,8 +229,10 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
                 st.error("워크시트 생성 실패:\n" + _format_gspread_error(e))
                 return
 
+        now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
+        formatted_time = now_kst.strftime("%Y-%m-%d %H:%M:%S")
         df_out = df_result.copy()
-        df_out.insert(0, "timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        df_out.insert(0, "timestamp", formatted_time)
 
         if created_new_ws:
             try:
@@ -1047,17 +1050,26 @@ def main():
         df_runs['p_wpct'] = (df_runs['R']**p_n) / ((df_runs['R']**p_n) + (df_runs['RA']**p_n))
         df_runs['p_wpct'] = df_runs['p_wpct'].round(4)
 
-        df_final = pd.merge(df_standings, df_runs[['팀명','p_wpct']], on='팀명', how='left')
+        # 득점(R), 실점(RA), 피타고리안 승률을 모두 결합
+        df_final = pd.merge(df_standings, df_runs[['팀명','R','RA','p_wpct']], on='팀명', how='left')
         df_final['잔여경기'] = (144 - df_final['경기']).clip(lower=0)
 
         # 기본 기대승수
         np.random.seed(42)
         df_final['기대승수_승률기반'] = [
-            monte_carlo_expected_wins(p=float(r['승률']), n_games=int(r['잔여경기']), n_sims=10_000)
+            monte_carlo_expected_wins(
+                p=float(r['승률']) if pd.notna(r['승률']) else 0.0,
+                n_games=int(r['잔여경기']) if pd.notna(r['잔여경기']) else 0,
+                n_sims=10_000
+            )
             for _, r in df_final.iterrows()
         ]
         df_final['기대승수_피타고리안기반'] = [
-            monte_carlo_expected_wins(p=float(r['p_wpct']), n_games=int(r['잔여경기']), n_sims=10_000)
+            monte_carlo_expected_wins(
+                p=float(r['p_wpct']) if pd.notna(r['p_wpct']) else 0.0,
+                n_games=int(r['잔여경기']) if pd.notna(r['잔여경기']) else 0,
+                n_sims=10_000
+            )
             for _, r in df_final.iterrows()
         ]
         df_final['최종기대승수_승률기반'] = (df_final['승'] + df_final['기대승수_승률기반']).round(1)
@@ -1172,14 +1184,13 @@ def main():
         with c2:
             playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 5_000, 50_000, 5_000, step=5_000)
 
-        if 'df_final' in st.session_state:
-            with st.expander("🔧 시뮬레이션 입력 디버그", expanded=False):
-                df_dbg = st.session_state['df_final'].copy()
-                st.write("입력 DF 샘플:", df_dbg.head(10))
-                st.write("행/열:", df_dbg.shape)
-                st.write("필수 컬럼 존재 여부:", {c: (c in df_dbg.columns) for c in ["팀명","승","p_wpct","잔여경기"]})
-                st.write("결측치 개수:", df_dbg[["팀명","승","p_wpct","잔여경기"]].isna().sum())
-
+        # if 'df_final' in st.session_state:
+        #     with st.expander("🔧 시뮬레이션 입력 디버그", expanded=False):
+        #         df_dbg = st.session_state['df_final'].copy()
+        #         st.write("입력 DF 샘플:", df_dbg.head(10))
+        #         st.write("행/열:", df_dbg.shape)
+        #         st.write("필수 컬럼 존재 여부:", {c: (c in df_dbg.columns) for c in ["팀명","승","p_wpct","잔여경기"]})
+        #         st.write("결측치 개수:", df_dbg[["팀명","승","p_wpct","잔여경기"]].isna().sum())
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
