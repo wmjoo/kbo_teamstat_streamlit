@@ -350,6 +350,110 @@ def _first_table_html(url: str) -> tuple[pd.DataFrame | None, BeautifulSoup | No
     except Exception:
         return None, None
 
+def _candidate_team_tokens() -> list[str]:
+    return [
+        'LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움',
+        '기아','랜더스','트윈스','이글스','자이언츠','라이온즈','베어스','다이노스','위즈','히어로즈','타이거즈'
+    ]
+
+def _score_table_for_teams(df: pd.DataFrame) -> tuple[int, int]:
+    """테이블 내 팀 토큰 발견 개수(최대열, 총합)을 점수로 반환."""
+    try:
+        tokens = _candidate_team_tokens()
+        max_col_hits = 0
+        total_hits = 0
+        for col in df.columns:
+            s = df[col].astype(str)
+            hits = 0
+            for tok in tokens:
+                try:
+                    hits += int(s.str.contains(tok, na=False).sum())
+                except Exception:
+                    continue
+            total_hits += hits
+            if hits > max_col_hits:
+                max_col_hits = hits
+        return max_col_hits, total_hits
+    except Exception:
+        return (0, 0)
+
+def _choose_best_table_from_html(html_text: str, soup: BeautifulSoup) -> pd.DataFrame | None:
+    # 1) pandas로 파싱 가능한 모든 테이블 점수화
+    best: tuple[int,int,int,pd.DataFrame] | None = None
+    try:
+        tables = pd.read_html(StringIO(html_text))
+        for idx, t in enumerate(tables):
+            max_col_hits, total_hits = _score_table_for_teams(t)
+            if best is None or (max_col_hits, total_hits) > (best[0], best[1]):
+                best = (max_col_hits, total_hits, idx, t)
+        if best and (best[0] >= 5 or best[1] >= 10):
+            return best[3]
+    except Exception:
+        pass
+    # 2) BeautifulSoup 기반 파싱 시도
+    try:
+        candidates = soup.find_all('table')
+        best_bs: tuple[int,int,int,pd.DataFrame] | None = None
+        for i, table in enumerate(candidates):
+            rows = []
+            for tr in table.find_all('tr'):
+                cells = tr.find_all(['th','td'])
+                if not cells:
+                    continue
+                rows.append([c.get_text(strip=True) for c in cells])
+            if len(rows) < 3:
+                continue
+            df = pd.DataFrame(rows[1:], columns=rows[0])
+            max_col_hits, total_hits = _score_table_for_teams(df)
+            if best_bs is None or (max_col_hits, total_hits) > (best_bs[0], best_bs[1]):
+                best_bs = (max_col_hits, total_hits, i, df)
+        if best_bs and (best_bs[0] >= 5 or best_bs[1] >= 10):
+            return best_bs[3]
+    except Exception:
+        pass
+    return None
+
+def _find_team_col_index(df: pd.DataFrame) -> int | None:
+    tokens = _candidate_team_tokens()
+    best_idx = None
+    best_hits = -1
+    for i, col in enumerate(df.columns):
+        try:
+            s = df[col].astype(str)
+            hits = 0
+            for tok in tokens:
+                try:
+                    hits += int(s.str.contains(tok, na=False).sum())
+                except Exception:
+                    continue
+            if hits > best_hits:
+                best_hits = hits
+                best_idx = i
+        except Exception:
+            continue
+    return best_idx if best_hits >= 5 else None
+
+def _ensure_team_first_column(df: pd.DataFrame) -> pd.DataFrame:
+    """팀명이 포함된 열을 찾아 0번째로 이동하고 헤더를 정리."""
+    if df is None or df.empty:
+        return df
+    # 헤더 행이 내부에 중복될 수 있어 제거
+    try:
+        header_set = set(map(str, df.columns))
+        mask_header_like = df.apply(lambda r: set(map(str, r.values)) == header_set, axis=1)
+        if mask_header_like.any():
+            df = df.loc[~mask_header_like].reset_index(drop=True)
+    except Exception:
+        pass
+    idx = _find_team_col_index(df)
+    if idx is None:
+        return df
+    if idx != 0:
+        cols = list(df.columns)
+        new_cols = [cols[idx]] + cols[:idx] + cols[idx+1:]
+        df = df[new_cols].copy()
+    return df
+
 def _standardize_kbo_team_name(raw_name: str) -> str | None:
     """페이지마다 다른 팀명 표기를 표준 팀명으로 통일.
     예: 'SSG랜더스' → 'SSG', '키움히어로즈' → '키움', '기아' → 'KIA' 등
@@ -382,19 +486,60 @@ def _standardize_kbo_team_name(raw_name: str) -> str | None:
         return 'KIA'
     return None
 
+def _fuzzy_map_team_name(raw_name: str) -> str | None:
+    """느슨한 기준으로 팀명을 표준 팀명으로 매핑.
+    - TEAM_NAMES 또는 대표 토큰이 포함되어 있으면 매핑
+    - 예: '삼성 라이온즈' → '삼성', 'KT 위즈' → 'KT'
+    """
+    if raw_name is None:
+        return None
+    s = str(raw_name)
+    s_compact = re.sub(r"\s+", "", s)
+    # 직접 표준화 먼저
+    std = _standardize_kbo_team_name(s_compact)
+    if std:
+        return std
+    # 포함 관계로 매핑
+    synonyms = {
+        '롯데': ['롯데', '자이언츠', 'LOTTE'],
+        '삼성': ['삼성', '라이온즈', 'SAMSUNG'],
+        'LG': ['LG', '트윈스'],
+        '한화': ['한화', '이글스', 'HANHWA'],
+        'KIA': ['KIA', '기아', '타이거즈'],
+        '두산': ['두산', '베어스', 'DOOSAN'],
+        'NC': ['NC', '다이노스'],
+        'KT': ['KT', '위즈'],
+        'SSG': ['SSG', '랜더스'],
+        '키움': ['키움', '히어로즈', 'KIWOOM'],
+    }
+    upper = s_compact.upper()
+    for std_name, keys in synonyms.items():
+        for key in keys:
+            if key.upper() in upper:
+                return std_name
+    return None
+
 # -----------------------------
 # 스크래핑 함수
 # -----------------------------
 @st.cache_data(ttl=3600)
 def scrape_kbo_team_batting_stats():
     url = "https://www.koreabaseball.com/Record/Team/Hitter/Basic1.aspx"
-    df, _ = _first_table_html(url)
+    raw, soup = _first_table_html(url)
+    df = _ensure_team_first_column(raw) if raw is not None else None
     if df is None or df.empty:
-        st.error("타자 기본 기록 테이블을 찾을 수 없습니다.")
-        return None
+        # 최후의 보루: soup에서 베스트 테이블 재선택
+        _, soup2 = _first_table_html(url)
+        if soup2 is not None:
+            best = _choose_best_table_from_html(StringIO(soup2.text).getvalue() if hasattr(soup2, 'text') else '', soup2)
+            if best is not None and not best.empty:
+                df = _ensure_team_first_column(best)
+        if df is None or df.empty:
+            st.error("타자 기본 기록 테이블을 찾을 수 없습니다.")
+            return None
     # 팀명 표준화 후 필터링
     try:
-        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
@@ -415,12 +560,19 @@ def scrape_kbo_team_batting_stats():
 @st.cache_data(ttl=3600)
 def scrape_kbo_team_batting_stats_advanced():
     url = "https://www.koreabaseball.com/Record/Team/Hitter/Basic2.aspx"
-    df, _ = _first_table_html(url)
+    raw, soup = _first_table_html(url)
+    df = _ensure_team_first_column(raw) if raw is not None else None
     if df is None or df.empty:
-        st.error("타자 고급 기록 테이블을 찾을 수 없습니다.")
-        return None
+        _, soup2 = _first_table_html(url)
+        if soup2 is not None:
+            best = _choose_best_table_from_html(StringIO(soup2.text).getvalue() if hasattr(soup2, 'text') else '', soup2)
+            if best is not None and not best.empty:
+                df = _ensure_team_first_column(best)
+        if df is None or df.empty:
+            st.error("타자 고급 기록 테이블을 찾을 수 없습니다.")
+            return None
     try:
-        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
@@ -441,12 +593,19 @@ def scrape_kbo_team_batting_stats_advanced():
 @st.cache_data(ttl=3600)
 def scrape_kbo_team_pitching_stats():
     url = "https://www.koreabaseball.com/Record/Team/Pitcher/Basic1.aspx"
-    df, _ = _first_table_html(url)
+    raw, soup = _first_table_html(url)
+    df = _ensure_team_first_column(raw) if raw is not None else None
     if df is None or df.empty:
-        st.error("투수 기본 기록 테이블을 찾을 수 없습니다.")
-        return None
+        _, soup2 = _first_table_html(url)
+        if soup2 is not None:
+            best = _choose_best_table_from_html(StringIO(soup2.text).getvalue() if hasattr(soup2, 'text') else '', soup2)
+            if best is not None and not best.empty:
+                df = _ensure_team_first_column(best)
+        if df is None or df.empty:
+            st.error("투수 기본 기록 테이블을 찾을 수 없습니다.")
+            return None
     try:
-        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
@@ -470,12 +629,19 @@ def scrape_kbo_team_pitching_stats():
 @st.cache_data(ttl=3600)
 def scrape_kbo_team_pitching_stats_advanced():
     url = "https://www.koreabaseball.com/Record/Team/Pitcher/Basic2.aspx"
-    df, _ = _first_table_html(url)
+    raw, soup = _first_table_html(url)
+    df = _ensure_team_first_column(raw) if raw is not None else None
     if df is None or df.empty:
-        st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
-        return None
+        _, soup2 = _first_table_html(url)
+        if soup2 is not None:
+            best = _choose_best_table_from_html(StringIO(soup2.text).getvalue() if hasattr(soup2, 'text') else '', soup2)
+            if best is not None and not best.empty:
+                df = _ensure_team_first_column(best)
+        if df is None or df.empty:
+            st.error("투수 고급 기록 테이블을 찾을 수 없습니다.")
+            return None
     try:
-        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
@@ -496,7 +662,8 @@ def scrape_kbo_team_pitching_stats_advanced():
 @st.cache_data(ttl=3600)
 def scrape_kbo_standings():
     url = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
-    df, soup = _first_table_html(url)
+    raw, soup = _first_table_html(url)
+    df = _ensure_team_first_column(raw) if raw is not None else None
     date_info = None
     if soup:
         all_texts = soup.get_text("\n")
@@ -504,10 +671,16 @@ def scrape_kbo_standings():
         if m:
             date_info = m.group(0)
     if df is None or df.empty:
-        st.error("순위 테이블을 찾을 수 없습니다.")
-        return None, date_info
+        _, soup2 = _first_table_html(url)
+        if soup2 is not None:
+            best = _choose_best_table_from_html(StringIO(soup2.text).getvalue() if hasattr(soup2, 'text') else '', soup2)
+            if best is not None and not best.empty:
+                df = _ensure_team_first_column(best)
+        if df is None or df.empty:
+            st.error("순위 테이블을 찾을 수 없습니다.")
+            return None, date_info
     try:
-        df.iloc[:, 0] = df.iloc[:, 0].apply(_standardize_kbo_team_name)
+        df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: _standardize_kbo_team_name(x) or _fuzzy_map_team_name(x))
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(['LG','한화','롯데','삼성','SSG','NC','KIA','두산','KT','키움'])].copy()
