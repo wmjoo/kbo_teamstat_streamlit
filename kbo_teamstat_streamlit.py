@@ -1322,22 +1322,52 @@ def main():
             if df_hist.empty:
                 st.info("아직 시뮬레이션 이력이 없습니다.")
                 return
-            # 최근 N회 필터/집계 UI
-            col1, col2 = st.columns(2)
+            # 일자 컬럼 생성
+            if 'timestamp' in df_hist.columns:
+                df_hist['date'] = pd.to_datetime(df_hist['timestamp']).dt.date
+            else:
+                df_hist['date'] = pd.NaT
+            # 최근 N일 UI
+            col1, col2, col3 = st.columns(3)
             with col1:
-                last_n = st.number_input("최근 N회만 보기", min_value=10, max_value=5000, value=200, step=10)
+                n_days = st.number_input("최근 N일", min_value=3, max_value=180, value=30, step=1)
             with col2:
-                group_by_team = st.checkbox("팀별 평균 보기", value=True)
-            df_hist_sorted = df_hist.sort_values('timestamp').tail(int(last_n)) if 'timestamp' in df_hist else df_hist.tail(int(last_n))
+                show_markers = st.checkbox("마커 표시", value=True)
+            with col3:
+                smooth = st.checkbox("일자별 평균(중복 타임 스탬프 집계)", value=True)
+
+            # 일자별 집계: 팀별 평균 우승/PO
+            if smooth:
+                df_day = df_hist.groupby(['date','팀명'], as_index=False).agg({'우승':'mean','PO':'mean'})
+            else:
+                df_day = df_hist.copy()
+                if 'date' not in df_day.columns:
+                    df_day['date'] = pd.NaT
+            # 최근 N일 필터
+            try:
+                if df_day['date'].notna().any():
+                    last_date = pd.to_datetime(df_day['date']).max()
+                    start_date = (pd.to_datetime(last_date) - pd.Timedelta(days=int(n_days)-1)).date()
+                    mask = pd.to_datetime(df_day['date']).dt.date >= start_date
+                    df_day = df_day.loc[mask]
+            except Exception:
+                pass
+
+            # 팀별 라인플랏(우승)
+            if {'date','팀명','우승'}.issubset(df_day.columns):
+                fig_c = px.line(df_day, x='date', y='우승', color='팀명', markers=show_markers, title='팀별 우승 확률 (일자별)')
+                fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
+                st.plotly_chart(fig_c, use_container_width=True)
+            # 팀별 라인플랏(PO)
+            if {'date','팀명','PO'}.issubset(df_day.columns):
+                fig_p = px.line(df_day, x='date', y='PO', color='팀명', markers=show_markers, title='팀별 PO 진출 확률 (일자별)')
+                fig_p.update_yaxes(range=[0, 100], ticksuffix='%')
+                st.plotly_chart(fig_p, use_container_width=True)
+
+            # 표는 아래로 이동하여 원본 기록을 그대로 표시
+            df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
+            st.subheader("원본 로그")
             st.dataframe(df_hist_sorted, use_container_width=True)
-            if group_by_team and '팀명' in df_hist_sorted.columns:
-                df_sum = df_hist_sorted.groupby('팀명', as_index=False).agg({'우승':'mean','PO':'mean'})
-                fig = px.bar(df_sum, x='팀명', y=['우승','PO'], barmode='group', title='최근 N회 평균 우승/PO 확률')
-                st.plotly_chart(fig, use_container_width=True)
-            elif 'timestamp' in df_hist_sorted.columns:
-                df_sum = df_hist_sorted.groupby('timestamp', as_index=False).agg({'우승':'mean','PO':'mean'})
-                fig = px.line(df_sum, x='timestamp', y=['우승','PO'], title='시간별 평균 우승/PO 확률', markers=True)
-                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
