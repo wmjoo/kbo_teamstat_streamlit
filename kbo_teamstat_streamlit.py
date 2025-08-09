@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime 
 import gspread
+from gspread.exceptions import APIError as GspreadAPIError
 from google.oauth2.service_account import Credentials
 
 def _diagnose_gsheet_setup() -> str:
@@ -48,6 +49,49 @@ def _diagnose_gsheet_setup() -> str:
     except Exception as e:
         messages.append(f"- 진단 중 예외 발생: {e}")
     return "\n".join(messages)
+
+def _format_gspread_error(err: Exception) -> str:
+    """gspread 예외를 읽기 쉬운 문자열로 변환합니다."""
+    try:
+        # gspread APIError인 경우 상세 파싱
+        if isinstance(err, GspreadAPIError):
+            status_code = None
+            reason = None
+            message = None
+
+            try:
+                resp = getattr(err, "response", None)
+                if resp is not None:
+                    status_code = getattr(resp, "status_code", None)
+                    # JSON 본문 파싱 시도
+                    try:
+                        data = resp.json()
+                        err_obj = data.get("error", {}) if isinstance(data, dict) else {}
+                        message = err_obj.get("message")
+                        # Google API 표준 에러 구조에서 reason 추출
+                        details = err_obj.get("errors") or []
+                        if isinstance(details, list) and details:
+                            reason = details[0].get("reason")
+                    except Exception:
+                        message = getattr(resp, "text", None)
+            except Exception:
+                pass
+
+            parts = []
+            if status_code is not None:
+                parts.append(f"status={status_code}")
+            if reason:
+                parts.append(f"reason={reason}")
+            if message:
+                parts.append(f"message={message}")
+            if not parts:
+                parts.append(str(err))
+            return "; ".join(parts)
+
+        # 일반 예외는 문자열화
+        return str(err)
+    except Exception:
+        return str(err)
 
 def get_gsheet_client():
     try:
@@ -185,7 +229,7 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
             try:
                 sh = client.open_by_key(spreadsheet_id)
             except Exception as e:
-                st.error(f"스프레드시트(ID) 열기 실패: {e}")
+                st.error("스프레드시트(ID) 열기 실패:\n" + _format_gspread_error(e))
                 return
         else:
             # ID 미지정 시 제목으로 열기 시도, 실패하면 생성
@@ -204,16 +248,20 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
                             "- 또는 기존 스프레드시트의 ID를 secrets.gsheet.spreadsheet_id에 설정하고, 서비스 계정을 편집자로 공유"
                         )
                     else:
-                        st.error(f"스프레드시트 생성 실패: {create_err}")
+                        st.error("스프레드시트 생성 실패:\n" + _format_gspread_error(create_err))
                     return
 
         # 워크시트 열기 (없으면 생성) 및 헤더 추가
         created_new_worksheet = False
         try:
             worksheet = sh.worksheet(sheet_name)
-        except Exception:
-            worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
-            created_new_worksheet = True
+        except Exception as ws_open_err:
+            try:
+                worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
+                created_new_worksheet = True
+            except Exception as ws_create_err:
+                st.error("워크시트 생성 실패:\n" + _format_gspread_error(ws_create_err))
+                return
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         df_result = df_result.copy()
@@ -223,13 +271,17 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
         if created_new_worksheet:
             try:
                 worksheet.append_row(df_result.columns.tolist(), value_input_option="USER_ENTERED")
-            except Exception:
-                pass
+            except Exception as header_err:
+                st.warning("헤더 추가 실패(계속 진행):\n" + _format_gspread_error(header_err))
 
-        worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
+        try:
+            worksheet.append_rows(df_result.values.tolist(), value_input_option="USER_ENTERED")
+        except Exception as append_err:
+            st.error("데이터 추가 실패:\n" + _format_gspread_error(append_err))
+            return
         st.success(f"시뮬레이션 결과가 '{sheet_name}' 시트에 저장되었습니다.")
     except Exception as e:
-        st.error(f"Google Sheets 저장 중 오류: {e}")
+        st.error("Google Sheets 저장 중 알 수 없는 오류:\n" + _format_gspread_error(e))
 
 # 페이지 설정
 st.set_page_config(
