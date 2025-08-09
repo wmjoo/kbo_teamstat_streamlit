@@ -1295,13 +1295,13 @@ def main():
                 combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
 
                 # st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
+                disp = clean_dataframe_for_display(combined).rename(
+                    columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
+                )
+                safe_dataframe_display(disp, True, True)
+
                 cc1, cc2 = st.columns(2)
                 with cc1:
-                    disp = clean_dataframe_for_display(combined).rename(
-                        columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
-                    )
-                    safe_dataframe_display(disp, True, True)
-                with cc2:
                     fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
                                  color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
                     fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
@@ -1309,12 +1309,13 @@ def main():
                     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
                     st.plotly_chart(fig, use_container_width=True)
 
-                fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
-                              color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
-                fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
-                fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                st.plotly_chart(fig2, use_container_width=True)
+                with cc2:
+                    fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
+                                color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
+                    fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
+                    fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    st.plotly_chart(fig2, use_container_width=True)
                 st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
     with tab5:
