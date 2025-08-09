@@ -273,14 +273,6 @@ def clean_dataframe_for_display(df: pd.DataFrame) -> pd.DataFrame:
         for c in dfc.columns:
             if c in ("팀명", "순위", "최근10경기"):
                 continue
-            try:
-                dfc[c] = pd.to_numeric(dfc[c])
-            except Exception:
-                continue
-
-        for c in dfc.columns:
-            if c in ("팀명", "순위", "최근10경기"):
-                continue
             if pd.api.types.is_float_dtype(dfc[c]):
                 dfc[c] = dfc[c].round(3).astype(str)
             elif pd.api.types.is_integer_dtype(dfc[c]):
@@ -406,6 +398,9 @@ def scrape_kbo_team_batting_stats():
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
+    if df.empty:
+        st.error("타자 기본 기록 테이블 파싱 실패(팀명 필터 결과 0행). 잠시 후 다시 시도해주세요.")
+        return None
     cols = ['팀명','AVG','G','PA','AB','R','H','2B','3B','HR','TB','RBI','SAC','SF']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -414,7 +409,7 @@ def scrape_kbo_team_batting_stats():
         if c != '팀명':
             df[c] = pd.to_numeric(df[c], errors='coerce')
     df = df.sort_values('AVG', ascending=False).reset_index(drop=True)
-    df.insert(0, '순위', range(1, len(df)+1))
+    df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df
 
 @st.cache_data(ttl=3600)
@@ -429,6 +424,9 @@ def scrape_kbo_team_batting_stats_advanced():
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
+    if df.empty:
+        st.error("타자 고급 기록 테이블 파싱 실패(팀명 필터 결과 0행). 잠시 후 다시 시도해주세요.")
+        return None
     cols = ['팀명','AVG','BB','IBB','HBP','SO','GDP','SLG','OBP','OPS','MH','RISP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -437,7 +435,7 @@ def scrape_kbo_team_batting_stats_advanced():
         if c != '팀명':
             df[c] = pd.to_numeric(df[c], errors='coerce')
     df = df.sort_values('AVG', ascending=False).reset_index(drop=True)
-    df.insert(0, '순위', range(1, len(df)+1))
+    df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df
 
 @st.cache_data(ttl=3600)
@@ -452,6 +450,9 @@ def scrape_kbo_team_pitching_stats():
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
+    if df.empty:
+        st.error("투수 기본 기록 테이블 파싱 실패(팀명 필터 결과 0행). 잠시 후 다시 시도해주세요.")
+        return None
     cols = ['팀명','ERA','G','W','L','SV','HLD','WPCT','IP','H','HR','BB','HBP','SO','R','ER','WHIP']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -463,7 +464,7 @@ def scrape_kbo_team_pitching_stats():
         if c not in ['팀명','IP']:
             df[c] = pd.to_numeric(df[c], errors='coerce')
     df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
-    df.insert(0, '순위', range(1, len(df)+1))
+    df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df
 
 @st.cache_data(ttl=3600)
@@ -478,6 +479,9 @@ def scrape_kbo_team_pitching_stats_advanced():
     except Exception:
         pass
     df = df[df.iloc[:, 0].isin(TEAM_NAMES)].copy()
+    if df.empty:
+        st.error("투수 고급 기록 테이블 파싱 실패(팀명 필터 결과 0행). 잠시 후 다시 시도해주세요.")
+        return None
     cols = ['팀명','ERA','CG','SHO','QS','BSV','TBF','NP','AVG','2B','3B','SAC','SF','IBB','WP','BK']
     take = min(len(df.columns), len(cols))
     df = df.iloc[:, :take].copy()
@@ -486,7 +490,7 @@ def scrape_kbo_team_pitching_stats_advanced():
         if c != '팀명':
             df[c] = pd.to_numeric(df[c], errors='coerce')
     df = df.sort_values('ERA', ascending=True).reset_index(drop=True)
-    df.insert(0, '순위', range(1, len(df)+1))
+    df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df
 
 @st.cache_data(ttl=3600)
@@ -515,7 +519,7 @@ def scrape_kbo_standings():
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors='coerce')
     df = df.sort_values('승률', ascending=False).reset_index(drop=True)
-    df.insert(0, '순위', range(1, len(df)+1))
+    df.insert(0, '순위', pd.Series(range(1, len(df)+1), dtype='Int64'))
     return df, date_info
 
 # -----------------------------
@@ -569,7 +573,12 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
     # 잔여경기 전체 0인 경우: 현재 승수 기준
     if np.all(n_remain == 0):
         winners = {n: 0.0 for n in names}
-        winners[names[int(np.argmax(current_wins))]] = 100.0
+        try:
+            if len(current_wins) > 0:
+                winners[names[int(np.argmax(current_wins))]] = 100.0
+        except ValueError:
+            # 빈 시퀀스 안전망
+            pass
         st.info("모든 팀의 잔여 경기가 0입니다. 현재 승수 기준으로 우승 확률을 산출했습니다.")
         return winners
 
@@ -598,11 +607,15 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
                 sim[:, t] = np.random.binomial(n=nt, p=pt, size=this_batch)
 
         final_wins = sim + current_wins  # (B, T)
-        if final_wins.size == 0:
+        if final_wins.size == 0 or final_wins.shape[1] == 0:
             # 안전망: T==0 또는 B==0
             continue
 
-        idx = np.argmax(final_wins, axis=1)  # (B,)
+        try:
+            idx = np.argmax(final_wins, axis=1)  # (B,)
+        except ValueError:
+            # 빈 시퀀스 안전망
+            continue
         for i in idx:
             wins_count[names[int(i)]] += 1
 
@@ -670,11 +683,15 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
                 sim[:, t] = np.random.binomial(n=nt, p=pt, size=this_batch)
 
         final_wins = sim + current_wins
-        if final_wins.size == 0:
+        if final_wins.size == 0 or final_wins.shape[1] == 0:
             continue
 
         # 빠른 상위 선택
-        topk_idx = np.argpartition(-final_wins, kth=top_k - 1, axis=1)[:, :top_k]
+        try:
+            topk_idx = np.argpartition(-final_wins, kth=top_k - 1, axis=1)[:, :top_k]
+        except ValueError:
+            # 빈 배열 안전망
+            continue
         rows = np.arange(final_wins.shape[0])[:, None]
         ordered = topk_idx[rows, np.argsort(-final_wins[rows, topk_idx], axis=1)]
 
@@ -889,6 +906,10 @@ def main():
 
         if st.button("시뮬레이션 시작"):
             with st.spinner("우승/플레이오프 확률 계산 중..."):
+                # 입력 검증: 비정상 입력이면 중단
+                if not _validate_sim_inputs(df_final):
+                    st.stop()
+
                 champs = calculate_championship_probability(df_final, championship_simulations)
                 df_final['우승확률_퍼센트'] = df_final['팀명'].map(champs)
                 po = calculate_playoff_probability(df_final, playoff_simulations)
