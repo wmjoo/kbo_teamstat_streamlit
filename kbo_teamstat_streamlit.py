@@ -161,11 +161,51 @@ def append_simulation_to_sheet(df_result, sheet_name="SimulationLog"):
             st.error("구글 시트 클라이언트를 초기화할 수 없습니다.\n원인 진단:\n" + diag)
             return
             
-        # 스프레드시트 열기 (없으면 생성)
+        # 스프레드시트 열기 (secrets에서 ID/URL 우선)
+        sh = None
         try:
-            sh = client.open("KBO_Simulation_Log")  # 스프레드시트 이름 통일
+            cfg = st.secrets.get("gsheet", {})
         except Exception:
-            sh = client.create("KBO_Simulation_Log")
+            cfg = {}
+
+        spreadsheet_id = None
+        if isinstance(cfg, dict):
+            spreadsheet_id = cfg.get("spreadsheet_id")
+            spreadsheet_url = cfg.get("spreadsheet_url")
+            if not spreadsheet_id and spreadsheet_url:
+                try:
+                    import re as _re
+                    m = _re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", str(spreadsheet_url))
+                    if m:
+                        spreadsheet_id = m.group(1)
+                except Exception:
+                    pass
+
+        if spreadsheet_id:
+            try:
+                sh = client.open_by_key(spreadsheet_id)
+            except Exception as e:
+                st.error(f"스프레드시트(ID) 열기 실패: {e}")
+                return
+        else:
+            # ID 미지정 시 제목으로 열기 시도, 실패하면 생성
+            try:
+                sh = client.open("KBO_Simulation_Log")
+            except Exception as open_err:
+                try:
+                    sh = client.create("KBO_Simulation_Log")
+                except Exception as create_err:
+                    err_text = str(create_err)
+                    if "quota" in err_text.lower() and "storage" in err_text.lower():
+                        st.error(
+                            "Google Drive 저장 용량 초과로 새 스프레드시트를 만들 수 없습니다.\n"
+                            "해결 방법:\n"
+                            "- 드라이브 용량 확보(휴지통 비우기 포함) 후 다시 시도\n"
+                            "- 또는 기존 스프레드시트의 ID를 secrets.gsheet.spreadsheet_id에 설정하고, 서비스 계정을 편집자로 공유"
+                        )
+                    else:
+                        st.error(f"스프레드시트 생성 실패: {create_err}")
+                    return
 
         # 워크시트 열기 (없으면 생성) 및 헤더 추가
         created_new_worksheet = False
