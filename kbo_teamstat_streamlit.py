@@ -1133,7 +1133,7 @@ def main():
                 else:
                     st.info("아직 시뮬레이션 이력이 없습니다. 우승 확률 탭에서 시뮬레이션을 실행해보세요.")
         except Exception as e:
-            st.info("Google Sheets 연결에 문제가 있습니다. 시뮬레이션 이력을 불러올 수 없습니다.")
+            st.info(f"Google Sheets 연결에 문제가 있습니다. 시뮬레이션 이력을 불러올 수 없습니다. {e}")
             # Google Sheets 연결 실패 시에도 앱이 계속 작동하도록 함
             pass
 
