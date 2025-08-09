@@ -74,6 +74,17 @@ def _parse_kbo_date_info_to_date(date_info: str) -> str | None:
     except Exception:
         return None
 
+# 팀별 고정 색상(요청 우선 적용). 지정되지 않은 팀은 기본 팔레트 사용
+TEAM_COLOR_MAP = {
+    'LG': '#8B0000',      # DarkRed
+    '한화': '#FFA500',     # Orange
+    '키움': '#800020',     # Burgundy
+    '두산': '#000080',     # Navy
+    '삼성': '#1E90FF',     # DodgerBlue
+    'SSG': '#FFD700',     # Gold/Yellow
+    'KT': '#000000',      # Black
+}
+
 def _build_session() -> requests.Session:
     session = requests.Session()
     retry = Retry(
@@ -1393,6 +1404,15 @@ def main():
                     title='팀별 우승 확률 (일자별)',
                     category_orders={'팀명': team_order} if team_order else None
                 )
+                try:
+                    # 라인 색상 고정
+                    for tr in fig_c.data:
+                        team = tr.name
+                        if team in TEAM_COLOR_MAP:
+                            tr.line.color = TEAM_COLOR_MAP[team]
+                            tr.marker.color = TEAM_COLOR_MAP[team]
+                except Exception:
+                    pass
                 fig_c.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_c, use_container_width=True)
             # 팀별 라인플랏(PO)
@@ -1402,6 +1422,14 @@ def main():
                     title='팀별 PO 진출 확률 (일자별)',
                     category_orders={'팀명': team_order} if team_order else None
                 )
+                try:
+                    for tr in fig_p.data:
+                        team = tr.name
+                        if team in TEAM_COLOR_MAP:
+                            tr.line.color = TEAM_COLOR_MAP[team]
+                            tr.marker.color = TEAM_COLOR_MAP[team]
+                except Exception:
+                    pass
                 fig_p.update_yaxes(range=[0, 100], ticksuffix='%')
                 st.plotly_chart(fig_p, use_container_width=True)
 
