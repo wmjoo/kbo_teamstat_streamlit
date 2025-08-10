@@ -1636,7 +1636,7 @@ def main():
         # 4개 컬럼으로 메트릭 표시
         if (pyt_1st_current is not None or pyt_2nd_current is not None or 
             bt_1st_current is not None or bt_2nd_current is not None):
-            st.markdown("### 📊 최근 확률 현황")
+            # st.markdown("### 📊 최근 확률 현황")
             col1, col2, col3, col4 = st.columns(4)
             
             # 컬럼 1: 피타고리안 승률 기반 1위 우승확률
@@ -1692,11 +1692,11 @@ def main():
         combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
         combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
 
-        # st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
-        disp = clean_dataframe_for_display(combined).rename(
-            columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
-        )
-        safe_dataframe_display(disp, True, True)
+        with st.expander("🔍 피타고리안 기반 우승 확률 & PO 진출 확률", expanded=False):                  
+            disp = clean_dataframe_for_display(combined).rename(
+                columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
+            )
+            safe_dataframe_display(disp, use_container_width=True, hide_index=True)
 
         cc1, cc2 = st.columns(2)
         with cc1:
