@@ -1511,6 +1511,76 @@ def main():
             st.session_state['simulation_results'] = log_df.copy()
             st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
 
+        # LG와 한화의 최근 1위 확률 계산 및 표시
+        lg_bt1_current = None
+        lg_bt1_previous = None
+        hw_bt1_current = None
+        hw_bt1_previous = None
+        
+        # 히스토리 데이터에서 최근 1위 확률 가져오기
+        if 'simulation_results' in st.session_state:
+            try:
+                # 히스토리 데이터 로드
+                df_hist = st.session_state.get('simulation_results', pd.DataFrame())
+                if not df_hist.empty and 'BT_1위확률' in df_hist.columns:
+                    # 일자별 집계
+                    df_hist['date'] = pd.to_datetime(df_hist.get('base_date', pd.Timestamp.now().date()))
+                    df_day_bt1 = df_hist.groupby(['date','팀명'], as_index=False).agg({'BT_1위확률': 'mean'})
+                    df_day_bt1 = df_day_bt1.sort_values(['date','팀명'])
+                    
+                    # 최근 2일 데이터 추출
+                    recent_dates = df_day_bt1['date'].unique()
+                    if len(recent_dates) >= 2:
+                        latest_date = recent_dates[-1]
+                        previous_date = recent_dates[-2]
+                        
+                        # LG 데이터
+                        lg_latest = df_day_bt1[(df_day_bt1['date'] == latest_date) & (df_day_bt1['팀명'] == 'LG')]
+                        lg_previous = df_day_bt1[(df_day_bt1['date'] == previous_date) & (df_day_bt1['팀명'] == 'LG')]
+                        
+                        if not lg_latest.empty:
+                            lg_bt1_current = lg_latest['BT_1위확률'].iloc[0]
+                        if not lg_previous.empty:
+                            lg_bt1_previous = lg_previous['BT_1위확률'].iloc[0]
+                        
+                        # 한화 데이터
+                        hw_latest = df_day_bt1[(df_day_bt1['date'] == latest_date) & (df_day_bt1['팀명'] == '한화')]
+                        hw_previous = df_day_bt1[(df_day_bt1['date'] == previous_date) & (df_day_bt1['팀명'] == '한화')]
+                        
+                        if not hw_latest.empty:
+                            hw_bt1_current = hw_latest['BT_1위확률'].iloc[0]
+                        if not hw_previous.empty:
+                            hw_bt1_previous = hw_previous['BT_1위확률'].iloc[0]
+            except Exception as e:
+                st.warning(f"1위 확률 데이터 로딩 중 오류: {e}")
+        
+        # LG와 한화 1위 확률 메트릭 표시
+        if lg_bt1_current is not None or hw_bt1_current is not None:
+            st.markdown("### 📊 최근 1위 확률 현황")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if lg_bt1_current is not None:
+                    lg_change = lg_bt1_current - lg_bt1_previous if lg_bt1_previous is not None else 0
+                    st.metric(
+                        label="LG 1위 확률",
+                        value=f"{lg_bt1_current:.1f}%",
+                        delta=f"{lg_change:+.1f}%" if lg_bt1_previous is not None else None
+                    )
+                else:
+                    st.metric(label="LG 1위 확률", value="데이터 없음")
+            
+            with col2:
+                if hw_bt1_current is not None:
+                    hw_change = hw_bt1_current - hw_bt1_previous if hw_bt1_previous is not None else 0
+                    st.metric(
+                        label="한화 1위 확률",
+                        value=f"{hw_bt1_current:.1f}%",
+                        delta=f"{hw_change:+.1f}%" if hw_bt1_previous is not None else None
+                    )
+                else:
+                    st.metric(label="한화 1위 확률", value="데이터 없음")
+        
         display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
         combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
         combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
