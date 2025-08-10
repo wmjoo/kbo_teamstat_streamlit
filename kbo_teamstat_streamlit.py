@@ -1546,7 +1546,7 @@ def main():
                         texttemplate="%{text:.1f}",
                         textfont={"size": 10},
                         showscale=True,
-                        colorbar=dict(title="확률 (%)", titleside="right")
+                        colorbar=dict(title=dict(text="확률 (%)", side="right"))
                     ))
                     
                     fig_heatmap.update_layout(
