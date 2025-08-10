@@ -1446,7 +1446,13 @@ def main():
                     
                     s = bt_fit(W, T, G_played)
                     S = s.reshape(-1, 1)
-                    P = S / (S + S.T)
+                    
+                    # 확률 계산 시 안전장치 추가
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        P = S / (S + S.T)
+                        # NaN, 무한대, 음수 값 처리
+                        P = np.nan_to_num(P, nan=0.5, posinf=1.0, neginf=0.0)
+                        P = np.clip(P, 0.0, 1.0)
                     np.fill_diagonal(P, 0.0)
                     
                     # 무승부율 계산
@@ -1454,6 +1460,9 @@ def main():
                         tie_pair = np.where(G_played > 0, T / G_played, np.nan)
                     league_tie_rate = float(np.nanmean(tie_pair))
                     tie_pair = np.where(np.isnan(tie_pair), league_tie_rate, tie_pair)
+                    # 무승부율도 안전장치 추가
+                    tie_pair = np.nan_to_num(tie_pair, nan=0.0, posinf=1.0, neginf=0.0)
+                    tie_pair = np.clip(tie_pair, 0.0, 1.0)
                     np.fill_diagonal(tie_pair, 0.0)
                     
                     # 4) 시뮬레이션
