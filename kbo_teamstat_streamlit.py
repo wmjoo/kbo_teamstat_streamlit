@@ -1484,9 +1484,13 @@ def main():
                     pairs = [(i, j) for i in range(n) for j in range(i + 1, n) if R[i, j] > 0]
                     for (i, j) in pairs:
                         r = int(R[i, j])
-                        ties = rng.binomial(r, tie_pair[i, j], size=SEASONS)
+                        # 확률값 안전장치
+                        tie_prob = np.clip(float(tie_pair[i, j]), 0.0, 1.0)
+                        win_prob = np.clip(float(P[i, j]), 0.0, 1.0)
+                        
+                        ties = rng.binomial(r, tie_prob, size=SEASONS)
                         non_ties = r - ties
-                        wins_i = rng.binomial(non_ties, float(P[i, j]), size=SEASONS)
+                        wins_i = rng.binomial(non_ties, win_prob, size=SEASONS)
                         wins_j = non_ties - wins_i
                         
                         final_w[:, i] += wins_i
@@ -1503,7 +1507,11 @@ def main():
                     
                     # 최종 승률
                     games_tot = final_w + final_l + final_t
-                    win_pct = (final_w + 0.5 * final_t) / np.maximum(1, games_tot)
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        win_pct = (final_w + 0.5 * final_t) / np.maximum(1, games_tot)
+                        # 승률도 안전장치 추가
+                        win_pct = np.nan_to_num(win_pct, nan=0.0, posinf=1.0, neginf=0.0)
+                        win_pct = np.clip(win_pct, 0.0, 1.0)
                     
                     # 순위 산정
                     noise = rng.normal(0, 1e-9, size=win_pct.shape)
@@ -1564,6 +1572,21 @@ def main():
                 except Exception as e:
                     st.error(f"Bradley-Terry 모형 계산 중 오류가 발생했습니다: {str(e)}")
                     st.info("팀간 승패표 데이터를 가져오는 데 문제가 있을 수 있습니다. 잠시 후 다시 시도해주세요.")
+                    
+                    # 디버그 정보 추가
+                    with st.expander("🔍 디버그 정보", expanded=False):
+                        try:
+                            st.write("팀간 승패표 원본 데이터:")
+                            st.write(df_vs_raw.head())
+                            st.write("정규화된 팀간 승패표:")
+                            st.write(df_vs.head())
+                            st.write("승패무 행렬 정보:")
+                            st.write(f"W 행렬 형태: {W.shape}")
+                            st.write(f"L 행렬 형태: {L.shape}")
+                            st.write(f"T 행렬 형태: {T.shape}")
+                            st.write(f"G_played 행렬 형태: {G_played.shape}")
+                        except Exception as debug_e:
+                            st.write(f"디버그 정보 출력 중 오류: {debug_e}")
 
     with tab5:
         # st.header("📅 시뮬레이션 이력")
