@@ -1557,11 +1557,11 @@ def main():
                     # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
                     fig_heatmap = go.Figure()
                     
-                    # 현재 순위 순서로 팀 정렬
+                    # 현재 순위 순서로 팀 정렬 (1위부터 10위까지)
                     current_rank_order = df_final.sort_values('순위')['팀명'].tolist()
+                    # rank_pct 행렬을 현재 순위 순서로 재정렬
                     rank_pct_sorted = rank_pct[[teams.index(team) for team in current_rank_order]]
                     teams_sorted = current_rank_order
-                    st.write(teams_sorted)
                     
                     # 흰색→빨강 색상맵
                     colorscale = [[0, 'white'], [1, 'red']]
@@ -1577,7 +1577,8 @@ def main():
                         texttemplate="%{text:.1f}",
                         textfont={"size": 10},
                         showscale=True,
-                        colorbar=dict(title=dict(text="확률 (%)", side="right"))
+                        colorbar=dict(title=dict(text="확률 (%)", side="right")),
+                        showlegend=False
                     ))
                     
                     fig_heatmap.update_layout(
