@@ -2158,7 +2158,7 @@ def main():
             if {'date','팀명','BT_1-5위확률'}.issubset(df_day.columns):
                 fig_bt5 = px.line(
                     df_day, x='date', y='BT_1-5위확률', color='팀명', markers=show_markers,
-                    title='팀별 Bradley-Terry 1-5위 확률 (일자별)',
+                    title='팀별 Bradley-Terry 5위 이내 진출 확률(일자별)',
                     category_orders={'팀명': team_order} if team_order else None
                 )
                 try:
@@ -2175,13 +2175,26 @@ def main():
                     pass
                 fig_bt5.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
                 st.plotly_chart(fig_bt5, use_container_width=True)
+                # 그래프 바로 아래에 해당 데이터(피벗) 표시
+                try:
+                    pivot_bt5 = (
+                        df_day.pivot_table(index='date', columns='팀명', values='BT_1-5위확률', aggfunc='mean').sort_index()
+                    )
+                    if team_order:
+                        existing_cols_bt5 = [c for c in team_order if c in pivot_bt5.columns]
+                        pivot_bt5 = pivot_bt5.reindex(columns=existing_cols_bt5)
+                    pivot_bt5 = pivot_bt5.dropna(how='all')
+                    with st.expander("🔎 일자별 Bradley-Terry 5위 이내 진출 확률", expanded=False):
+                        safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
 
             # 표는 아래로 이동하여 원본 기록을 그대로 표시
             df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
 
-            with st.expander("🔎 원본 데이터", expanded=False):
-                st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']).sort_values(['base_date', '팀명'], ascending=False), use_container_width=True,
-                            hide_index=True)
+            # with st.expander("🔎 원본 데이터", expanded=False):
+            #     st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']).sort_values(['base_date', '팀명'], ascending=False), use_container_width=True,
+            #                 hide_index=True)
         except Exception as e:
             st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
