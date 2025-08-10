@@ -1692,11 +1692,6 @@ def main():
         combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
         combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
 
-        with st.expander("🔍 피타고리안 기반 우승 확률 & PO 진출 확률", expanded=False):                  
-            disp = clean_dataframe_for_display(combined).rename(
-                columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
-            )
-            safe_dataframe_display(disp, use_container_width=True, hide_index=True)
 
         cc1, cc2 = st.columns(2)
         with cc1:
@@ -1722,6 +1717,13 @@ def main():
             fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
             st.plotly_chart(fig2, use_container_width=True)
+
+        with st.expander("🔍 피타고리안 기반 우승 확률 & PO 진출 확률", expanded=False):                  
+            disp = clean_dataframe_for_display(combined).rename(
+                columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
+            )
+            safe_dataframe_display(disp, use_container_width=True, hide_index=True)
+
         st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
         # Bradley-Terry 모형 기반 순위 예측 히트맵
