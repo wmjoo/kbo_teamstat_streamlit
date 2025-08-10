@@ -1612,7 +1612,7 @@ def main():
                         showgrid=False
                     )
                     fig_heatmap.update_xaxes(showgrid=False)
-
+                    fig_heatmap.update_yaxes(autorange="reversed")
                     st.plotly_chart(fig_heatmap, use_container_width=True)
                     # # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
                     # fig_heatmap = go.Figure()
