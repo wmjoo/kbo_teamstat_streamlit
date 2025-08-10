@@ -1511,11 +1511,22 @@ def main():
             st.session_state['simulation_results'] = log_df.copy()
             st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
 
-        # LG와 한화의 최근 1위 확률 계산 및 표시
-        lg_bt1_current = None
-        lg_bt1_previous = None
-        hw_bt1_current = None
-        hw_bt1_previous = None
+        # 최근 확률 데이터 계산 및 표시
+        # 피타고리안 승률 기반 우승확률 (1,2위)
+        pyt_1st_team = None
+        pyt_1st_current = None
+        pyt_1st_previous = None
+        pyt_2nd_team = None
+        pyt_2nd_current = None
+        pyt_2nd_previous = None
+        
+        # Bradley-Terry 기반 1위 확률 (1,2위)
+        bt_1st_team = None
+        bt_1st_current = None
+        bt_1st_previous = None
+        bt_2nd_team = None
+        bt_2nd_current = None
+        bt_2nd_previous = None
         
         # 구글 시트에서 히스토리 데이터 가져오기
         try:
@@ -1549,6 +1560,43 @@ def main():
                     elif 'timestamp' in df_hist.columns:
                         df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
                     
+                    # 피타고리안 승률 기반 우승확률 처리
+                    if '우승' in df_hist.columns and '피타고리안승률' in df_hist.columns:
+                        df_hist['우승'] = pd.to_numeric(df_hist['우승'], errors='coerce')
+                        df_hist['피타고리안승률'] = pd.to_numeric(df_hist['피타고리안승률'], errors='coerce')
+                        
+                        # 일자별 집계
+                        df_day_pyt = df_hist.groupby(['date','팀명'], as_index=False).agg({'우승': 'mean', '피타고리안승률': 'mean'})
+                        df_day_pyt = df_day_pyt.sort_values(['date','팀명'])
+                        
+                        # 피벗 테이블 생성
+                        pivot_pyt = (
+                            df_day_pyt.pivot_table(index='date', columns='팀명', values='우승', aggfunc='mean').sort_index()
+                        )
+                        
+                        if not pivot_pyt.empty:
+                            # 최근 2일 데이터 추출
+                            recent_dates = pivot_pyt.index.tolist()
+                            if len(recent_dates) >= 2:
+                                latest_date = recent_dates[-1]
+                                previous_date = recent_dates[-2]
+                                
+                                # 최근 일자 기준 1,2위 팀 찾기
+                                latest_data = pivot_pyt.loc[latest_date].dropna()
+                                if len(latest_data) >= 2:
+                                    top2_teams = latest_data.nlargest(2)
+                                    pyt_1st_team = top2_teams.index[0]
+                                    pyt_2nd_team = top2_teams.index[1]
+                                    pyt_1st_current = top2_teams.iloc[0]
+                                    pyt_2nd_current = top2_teams.iloc[1]
+                                    
+                                    # 직전 일자 데이터
+                                    if pyt_1st_team in pivot_pyt.columns:
+                                        pyt_1st_previous = pivot_pyt.loc[previous_date, pyt_1st_team]
+                                    if pyt_2nd_team in pivot_pyt.columns:
+                                        pyt_2nd_previous = pivot_pyt.loc[previous_date, pyt_2nd_team]
+                    
+                    # Bradley-Terry 기반 1위 확률 처리
                     if 'BT_1위확률' in df_hist.columns:
                         df_hist['BT_1위확률'] = pd.to_numeric(df_hist['BT_1위확률'], errors='coerce')
                         
@@ -1568,44 +1616,76 @@ def main():
                                 latest_date = recent_dates[-1]
                                 previous_date = recent_dates[-2]
                                 
-                                # LG 데이터
-                                if 'LG' in pivot_bt1.columns:
-                                    lg_bt1_current = pivot_bt1.loc[latest_date, 'LG']
-                                    lg_bt1_previous = pivot_bt1.loc[previous_date, 'LG']
-                                
-                                # 한화 데이터
-                                if '한화' in pivot_bt1.columns:
-                                    hw_bt1_current = pivot_bt1.loc[latest_date, '한화']
-                                    hw_bt1_previous = pivot_bt1.loc[previous_date, '한화']
+                                # 최근 일자 기준 1,2위 팀 찾기
+                                latest_data = pivot_bt1.loc[latest_date].dropna()
+                                if len(latest_data) >= 2:
+                                    top2_teams = latest_data.nlargest(2)
+                                    bt_1st_team = top2_teams.index[0]
+                                    bt_2nd_team = top2_teams.index[1]
+                                    bt_1st_current = top2_teams.iloc[0]
+                                    bt_2nd_current = top2_teams.iloc[1]
+                                    
+                                    # 직전 일자 데이터
+                                    if bt_1st_team in pivot_bt1.columns:
+                                        bt_1st_previous = pivot_bt1.loc[previous_date, bt_1st_team]
+                                    if bt_2nd_team in pivot_bt1.columns:
+                                        bt_2nd_previous = pivot_bt1.loc[previous_date, bt_2nd_team]
         except Exception as e:
-            st.warning(f"1위 확률 데이터 로딩 중 오류: {e}")
+            st.warning(f"확률 데이터 로딩 중 오류: {e}")
         
-        # LG와 한화 1위 확률 메트릭 표시
-        if lg_bt1_current is not None or hw_bt1_current is not None:
-            st.markdown("### 📊 최근 1위 확률 현황")
-            col1, col2 = st.columns(2)
+        # 4개 컬럼으로 메트릭 표시
+        if (pyt_1st_current is not None or pyt_2nd_current is not None or 
+            bt_1st_current is not None or bt_2nd_current is not None):
+            st.markdown("### 📊 최근 확률 현황")
+            col1, col2, col3, col4 = st.columns(4)
             
+            # 컬럼 1: 피타고리안 승률 기반 1위 우승확률
             with col1:
-                if lg_bt1_current is not None:
-                    lg_change = lg_bt1_current - lg_bt1_previous if lg_bt1_previous is not None else 0
+                if pyt_1st_current is not None and pyt_1st_team is not None:
+                    pyt_1st_change = pyt_1st_current - pyt_1st_previous if pyt_1st_previous is not None else 0
                     st.metric(
-                        label="LG 1위 확률",
-                        value=f"{lg_bt1_current:.1f}%",
-                        delta=f"{lg_change:+.1f}%" if lg_bt1_previous is not None else None
+                        label=f"{pyt_1st_team} 우승확률(피타)",
+                        value=f"{pyt_1st_current:.1f}%",
+                        delta=f"{pyt_1st_change:+.1f}%" if pyt_1st_previous is not None else None
                     )
                 else:
-                    st.metric(label="LG 1위 확률", value="데이터 없음")
+                    st.metric(label="피타고리안 1위", value="데이터 없음")
             
+            # 컬럼 2: 피타고리안 승률 기반 2위 우승확률
             with col2:
-                if hw_bt1_current is not None:
-                    hw_change = hw_bt1_current - hw_bt1_previous if hw_bt1_previous is not None else 0
+                if pyt_2nd_current is not None and pyt_2nd_team is not None:
+                    pyt_2nd_change = pyt_2nd_current - pyt_2nd_previous if pyt_2nd_previous is not None else 0
                     st.metric(
-                        label="한화 1위 확률",
-                        value=f"{hw_bt1_current:.1f}%",
-                        delta=f"{hw_change:+.1f}%" if hw_bt1_previous is not None else None
+                        label=f"{pyt_2nd_team} 우승확률(피타)",
+                        value=f"{pyt_2nd_current:.1f}%",
+                        delta=f"{pyt_2nd_change:+.1f}%" if pyt_2nd_previous is not None else None
                     )
                 else:
-                    st.metric(label="한화 1위 확률", value="데이터 없음")
+                    st.metric(label="피타고리안 2위", value="데이터 없음")
+            
+            # 컬럼 3: Bradley-Terry 기반 1위 확률
+            with col3:
+                if bt_1st_current is not None and bt_1st_team is not None:
+                    bt_1st_change = bt_1st_current - bt_1st_previous if bt_1st_previous is not None else 0
+                    st.metric(
+                        label=f"{bt_1st_team} 1위확률(BT)",
+                        value=f"{bt_1st_current:.1f}%",
+                        delta=f"{bt_1st_change:+.1f}%" if bt_1st_previous is not None else None
+                    )
+                else:
+                    st.metric(label="Bradley-Terry 1위", value="데이터 없음")
+            
+            # 컬럼 4: Bradley-Terry 기반 2위 확률
+            with col4:
+                if bt_2nd_current is not None and bt_2nd_team is not None:
+                    bt_2nd_change = bt_2nd_current - bt_2nd_previous if bt_2nd_previous is not None else 0
+                    st.metric(
+                        label=f"{bt_2nd_team} 1위확률(BT)",
+                        value=f"{bt_2nd_current:.1f}%",
+                        delta=f"{bt_2nd_change:+.1f}%" if bt_2nd_previous is not None else None
+                    )
+                else:
+                    st.metric(label="Bradley-Terry 2위", value="데이터 없음")
         
         display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
         combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
