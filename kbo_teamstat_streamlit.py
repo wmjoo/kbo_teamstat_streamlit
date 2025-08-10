@@ -1203,28 +1203,28 @@ def main():
         safe_dataframe_display(clean_dataframe_for_display(display), use_container_width=True, hide_index=True)
         st.caption(f"원본 데이터: [KBO 팀 순위]({KBO_URLS['standings']})  |  [타자 기본]({KBO_URLS['hitter_basic1']})  |  [투수 기본]({KBO_URLS['pitcher_basic1']})")
 
-        with st.expander("🔎 데이터 수집 디버그", expanded=False):
-            try:
-                st.write({
-                    '타자기본': None if df_hitter is None else df_hitter.shape,
-                    '타자고급': None if df_hitter_adv is None else df_hitter_adv.shape,
-                    '투수기본': None if df_pitcher is None else df_pitcher.shape,
-                    '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
-                    '순위': None if df_standings is None else df_standings.shape,
-                })
-                dbg_cols = st.columns(4)
-                with dbg_cols[0]:
-                    st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
-                with dbg_cols[1]:
-                    st.caption('타자고급 head'); st.write(None if df_hitter_adv is None else df_hitter_adv.head())
-                with dbg_cols[2]:
-                    st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
-                with dbg_cols[3]:
-                    st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
-                # with dbg_cols[4]:
-                st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
-            except Exception as e:
-                st.write(f"디버그 출력 중 오류: {e}")
+        # with st.expander("🔎 데이터 수집 디버그", expanded=False):
+        #     try:
+        #         st.write({
+        #             '타자기본': None if df_hitter is None else df_hitter.shape,
+        #             '타자고급': None if df_hitter_adv is None else df_hitter_adv.shape,
+        #             '투수기본': None if df_pitcher is None else df_pitcher.shape,
+        #             '투수고급': None if df_pitcher_adv is None else df_pitcher_adv.shape,
+        #             '순위': None if df_standings is None else df_standings.shape,
+        #         })
+        #         dbg_cols = st.columns(4)
+        #         with dbg_cols[0]:
+        #             st.caption('타자기본 head'); st.write(None if df_hitter is None else df_hitter.head())
+        #         with dbg_cols[1]:
+        #             st.caption('타자고급 head'); st.write(None if df_hitter_adv is None else df_hitter_adv.head())
+        #         with dbg_cols[2]:
+        #             st.caption('투수기본 head'); st.write(None if df_pitcher is None else df_pitcher.head())
+        #         with dbg_cols[3]:
+        #             st.caption('투수고급 head'); st.write(None if df_pitcher_adv is None else df_pitcher_adv.head())
+        #         # with dbg_cols[4]:
+        #         st.caption('순위 head'); st.write(None if df_standings is None else df_standings.head())
+        #     except Exception as e:
+        #         st.write(f"디버그 출력 중 오류: {e}")
 
     with tab2:
         # st.header("🏟️ 팀별 기록")
@@ -2105,6 +2105,19 @@ def main():
                     pass
                 fig_pyt.update_yaxes(range=[0.25, 0.7], dtick=0.1, tickformat='.1%')
                 st.plotly_chart(fig_pyt, use_container_width=True)
+                # 그래프 바로 아래에 해당 데이터(피벗) 표시
+                try:
+                    pivot_pyt = (
+                        df_day.pivot_table(index='date', columns='팀명', values='피타고리안승률', aggfunc='mean').sort_index()
+                    )
+                    if team_order:
+                        existing_cols_pyt = [c for c in team_order if c in pivot_pyt.columns]
+                        pivot_pyt = pivot_pyt.reindex(columns=existing_cols_pyt)
+                    pivot_pyt = pivot_pyt.dropna(how='all')
+                    with st.expander("🔎 일자별 피타고리안 승률", expanded=False):
+                        safe_dataframe_display(pivot_pyt.round(4).reset_index(), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
 
             # Bradley-Terry 1위 확률 그래프
             if {'date','팀명','BT_1위확률'}.issubset(df_day.columns):
@@ -2127,6 +2140,19 @@ def main():
                     pass
                 fig_bt1.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
                 st.plotly_chart(fig_bt1, use_container_width=True)
+                # 그래프 바로 아래에 해당 데이터(피벗) 표시
+                try:
+                    pivot_bt1 = (
+                        df_day.pivot_table(index='date', columns='팀명', values='BT_1위확률', aggfunc='mean').sort_index()
+                    )
+                    if team_order:
+                        existing_cols_bt1 = [c for c in team_order if c in pivot_bt1.columns]
+                        pivot_bt1 = pivot_bt1.reindex(columns=existing_cols_bt1)
+                    pivot_bt1 = pivot_bt1.dropna(how='all')
+                    with st.expander("🔎 일자별 Bradley-Terry 1위 확률", expanded=False):
+                        safe_dataframe_display(pivot_bt1.round(2).reset_index(), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
 
             # Bradley-Terry 1-5위 확률 그래프
             if {'date','팀명','BT_1-5위확률'}.issubset(df_day.columns):
