@@ -2037,7 +2037,7 @@ def main():
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
-                st.plotly_chart(fig_c, use_container_width=True)
+                st.plotly_chart(fig_c, use_container_width=False)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
                     pivot_win = (
@@ -2088,7 +2088,7 @@ def main():
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
-                st.plotly_chart(fig_p, use_container_width=True)
+                st.plotly_chart(fig_p, use_container_width=False)
                 try:
                     pivot_po = (
                         df_day.pivot_table(index='date', columns='팀명', values='PO', aggfunc='mean').sort_index()
@@ -2139,7 +2139,7 @@ def main():
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
-                st.plotly_chart(fig_pyt, use_container_width=True)
+                st.plotly_chart(fig_pyt, use_container_width=False)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
                     pivot_pyt = (
@@ -2190,7 +2190,7 @@ def main():
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
-                st.plotly_chart(fig_bt1, use_container_width=True)
+                st.plotly_chart(fig_bt1, use_container_width=False)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
                     pivot_bt1 = (
@@ -2241,7 +2241,7 @@ def main():
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
-                st.plotly_chart(fig_bt5, use_container_width=True)
+                st.plotly_chart(fig_bt5, use_container_width=False)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
                     pivot_bt5 = (
