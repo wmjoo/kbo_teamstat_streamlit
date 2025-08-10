@@ -1273,24 +1273,23 @@ def main():
         df_final = st.session_state['df_final']
         
         # 시뮬레이션 자동 실행 (10만회 고정)
-        with st.spinner("우승/플레이오프 확률 계산 중..."):
-            # 입력 검증: 비정상 입력이면 중단
-            if not _validate_sim_inputs(df_final):
-                st.stop()
+        # 입력 검증: 비정상 입력이면 중단
+        if not _validate_sim_inputs(df_final):
+            st.stop()
 
-            champs = calculate_championship_probability(df_final, 100_000)
-            df_final['우승확률_퍼센트'] = df_final['팀명'].map(champs)
-            po = calculate_playoff_probability(df_final, 100_000)
-            df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
+        champs = calculate_championship_probability(df_final, 100_000)
+        df_final['우승확률_퍼센트'] = df_final['팀명'].map(champs)
+        po = calculate_playoff_probability(df_final, 100_000)
+        df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
 
-            # Bradley-Terry 모형 결과도 함께 계산
-            bt_results = {}
-            try:
-                # Bradley-Terry 모형 계산 (기존 코드 재사용)
-                url_vs = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
-                raw_vs, soup_vs = _first_table_html(url_vs)
-                
-                if raw_vs is not None and soup_vs is not None:
+        # Bradley-Terry 모형 결과도 함께 계산
+        bt_results = {}
+        try:
+            # Bradley-Terry 모형 계산 (기존 코드 재사용)
+            url_vs = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
+            raw_vs, soup_vs = _first_table_html(url_vs)
+            
+            if raw_vs is not None and soup_vs is not None:
                     tables = soup_vs.find_all("table")
                     if len(tables) >= 2:
                         df_vs_raw = pd.read_html(str(tables[1]))[0]
@@ -1468,8 +1467,8 @@ def main():
                                 '1위확률': rank_pct[i, 0],  # 1위 확률
                                 '1-5위확률': rank_pct[i, :5].sum()  # 1~5위 확률
                             }
-            except Exception as e:
-                st.warning(f"Bradley-Terry 모형 계산 중 오류: {e}")
+        except Exception as e:
+            st.warning(f"Bradley-Terry 모형 계산 중 오류: {e}")
             
             # 피타고리안 승률 추가
             log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
