@@ -1529,20 +1529,50 @@ def main():
                     rank_cols = [f"{r}위" for r in range(1, n + 1)]
                     rank_df = pd.DataFrame(rank_pct, columns=rank_cols, index=teams).round(1)
                     
-                    # 6) 히트맵 시각화
+                    # 6) 팀간 승패표 표시
+                    st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
+                    
+                    # 승패무 행렬을 보기 좋게 표시
+                    def create_vs_table(W, L, T, teams):
+                        vs_data = []
+                        for i, team1 in enumerate(teams):
+                            row = [team1]
+                            for j, team2 in enumerate(teams):
+                                if i == j:
+                                    row.append("-")
+                                else:
+                                    w, l, t = W[i, j], L[i, j], T[i, j]
+                                    if w == 0 and l == 0 and t == 0:
+                                        row.append("-")
+                                    else:
+                                        row.append(f"{w}-{l}-{t}")
+                            vs_data.append(row)
+                        
+                        vs_cols = ["팀명"] + teams
+                        return pd.DataFrame(vs_data, columns=vs_cols)
+                    
+                    vs_table = create_vs_table(W, L, T, teams)
+                    safe_dataframe_display(vs_table, use_container_width=True, hide_index=True)
+                    
+                    # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
                     fig_heatmap = go.Figure()
+                    
+                    # 현재 순위 순서로 팀 정렬
+                    current_rank_order = df_final.sort_values('순위')['팀명'].tolist()
+                    rank_pct_sorted = rank_pct[[teams.index(team) for team in current_rank_order]]
+                    teams_sorted = current_rank_order
                     
                     # 흰색→빨강 색상맵
                     colorscale = [[0, 'white'], [1, 'red']]
                     
                     fig_heatmap.add_trace(go.Heatmap(
-                        z=rank_pct,
+                        z=rank_pct_sorted,
                         x=rank_cols,
-                        y=teams,
+                        y=teams_sorted,
                         colorscale=colorscale,
                         zmin=0,
                         zmax=100,
-                        text=rank_pct.round(1),
+                        text=rank_pct_sorted.round(1),
                         texttemplate="%{text:.1f}",
                         textfont={"size": 10},
                         showscale=True,
@@ -1552,7 +1582,7 @@ def main():
                     fig_heatmap.update_layout(
                         title="Bradley-Terry 모형 기반 팀별 최종 순위 예측 (10만 회 시뮬레이션)",
                         xaxis_title="최종 순위",
-                        yaxis_title="팀명",
+                        yaxis_title="팀명 (현재 순위 순)",
                         width=800,
                         height=500
                     )
@@ -1562,10 +1592,10 @@ def main():
                     
                     st.plotly_chart(fig_heatmap, use_container_width=True)
                     
-                    # 결과 테이블 표시
+                    # 결과 테이블 표시 (현재 순위 순서로 정렬)
                     st.subheader("📊 순위별 확률 분포 (%)")
-                    rank_df_display = rank_df.reset_index().rename(columns={"index": "팀명"})
-                    safe_dataframe_display(rank_df_display, use_container_width=True, hide_index=True)
+                    rank_df_sorted = rank_df.loc[current_rank_order].reset_index().rename(columns={"index": "팀명"})
+                    safe_dataframe_display(rank_df_sorted, use_container_width=True, hide_index=True)
                     
                     st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
                     
