@@ -1561,6 +1561,7 @@ def main():
                     current_rank_order = df_final.sort_values('순위')['팀명'].tolist()
                     rank_pct_sorted = rank_pct[[teams.index(team) for team in current_rank_order]]
                     teams_sorted = current_rank_order
+                    st.write(teams_sorted)
                     
                     # 흰색→빨강 색상맵
                     colorscale = [[0, 'white'], [1, 'red']]
@@ -1584,7 +1585,8 @@ def main():
                         xaxis_title="최종 순위",
                         yaxis_title="팀명 (현재 순위 순)",
                         width=800,
-                        height=500
+                        height=500,
+                        showlegend=False
                     )
                     
                     fig_heatmap.update_xaxes(showgrid=False)
