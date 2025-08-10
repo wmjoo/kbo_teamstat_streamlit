@@ -27,9 +27,34 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-    .main-header { font-size: 2.5rem; color: #1f77b4; text-align: center; margin-bottom: 2rem; }
+    .main-header { font-size: 2.5rem; color: #1f77b4; text-align: center; margin-bottom: 1rem; }
     .metric-card { background-color: #f0f2f6; padding: 1rem; border-radius: .5rem; border-left: 4px solid #1f77b4; }
     .team-stats { background-color: #fff; padding: 1rem; border-radius: .5rem; box-shadow: 0 2px 4px rgba(0,0,0,.1); }
+    
+    /* 페이지 여백 줄이기 */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    /* 헤더 여백 줄이기 */
+    .main-header {
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* 탭 여백 줄이기 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* 일반적인 여백 줄이기 */
+    .element-container {
+        margin-bottom: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
