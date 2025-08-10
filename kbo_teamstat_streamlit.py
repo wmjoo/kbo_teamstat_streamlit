@@ -1271,263 +1271,272 @@ def main():
     with tab4:
         st.markdown("### 피타고리안 승률 기반 시뮬레이션")
         df_final = st.session_state['df_final']
-        c1, c2 = st.columns(2)
-        with c1:
-            championship_simulations = st.slider("우승 확률 시뮬레이션 횟수", 50_000, 300_000, 100_000, step=10_000)
-        with c2:
-            playoff_simulations = st.slider("플레이오프 확률 시뮬레이션 횟수", 50_000, 300_000, 100_000, step=10_000)
+        
+        # 시뮬레이션 자동 실행 (10만회 고정)
+        with st.spinner("우승/플레이오프 확률 계산 중..."):
+            # 입력 검증: 비정상 입력이면 중단
+            if not _validate_sim_inputs(df_final):
+                st.stop()
 
-        if st.button("시뮬레이션 시작"):
-            with st.spinner("우승/플레이오프 확률 계산 중..."):
-                # 입력 검증: 비정상 입력이면 중단
-                if not _validate_sim_inputs(df_final):
-                    st.stop()
+            champs = calculate_championship_probability(df_final, 100_000)
+            df_final['우승확률_퍼센트'] = df_final['팀명'].map(champs)
+            po = calculate_playoff_probability(df_final, 100_000)
+            df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
 
-                champs = calculate_championship_probability(df_final, championship_simulations)
-                df_final['우승확률_퍼센트'] = df_final['팀명'].map(champs)
-                po = calculate_playoff_probability(df_final, playoff_simulations)
-                df_final['플레이오프진출확률_퍼센트'] = df_final['팀명'].map(po)
-
-                # Bradley-Terry 모형 결과도 함께 계산
-                bt_results = {}
-                try:
-                    # Bradley-Terry 모형 계산 (기존 코드 재사용)
-                    url_vs = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
-                    raw_vs, soup_vs = _first_table_html(url_vs)
-                    
-                    if raw_vs is not None and soup_vs is not None:
-                        tables = soup_vs.find_all("table")
-                        if len(tables) >= 2:
-                            df_vs_raw = pd.read_html(str(tables[1]))[0]
-                            teams = df_final['팀명'].tolist()
-                            n = len(teams)
-                            idx = {t: i for i, t in enumerate(teams)}
-                            
-                            # 팀간 승패표 정규화
-                            def normalize_tvt(df_vs, teams):
-                                new_cols = []
-                                for c in df_vs.columns:
-                                    col_str = str(c).strip()
-                                    if col_str == "팀명":
-                                        new_cols.append("팀명")
+            # Bradley-Terry 모형 결과도 함께 계산
+            bt_results = {}
+            try:
+                # Bradley-Terry 모형 계산 (기존 코드 재사용)
+                url_vs = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
+                raw_vs, soup_vs = _first_table_html(url_vs)
+                
+                if raw_vs is not None and soup_vs is not None:
+                    tables = soup_vs.find_all("table")
+                    if len(tables) >= 2:
+                        df_vs_raw = pd.read_html(str(tables[1]))[0]
+                        teams = df_final['팀명'].tolist()
+                        n = len(teams)
+                        idx = {t: i for i, t in enumerate(teams)}
+                        
+                        # 팀간 승패표 정규화
+                        def normalize_tvt(df_vs, teams):
+                            new_cols = []
+                            for c in df_vs.columns:
+                                col_str = str(c).strip()
+                                if col_str == "팀명":
+                                    new_cols.append("팀명")
+                                else:
+                                    team_name = col_str.split(" (")[0].strip()
+                                    if team_name in teams:
+                                        new_cols.append(team_name)
                                     else:
-                                        team_name = col_str.split(" (")[0].strip()
-                                        if team_name in teams:
-                                            new_cols.append(team_name)
-                                        else:
-                                            new_cols.append(col_str)
-                                
-                                df_vs.columns = new_cols
-                                if "팀명" not in df_vs.columns:
-                                    df_vs.rename(columns={df_vs.columns[0]: "팀명"}, inplace=True)
-                                df_vs["팀명"] = df_vs["팀명"].astype(str).str.strip()
-                                available_teams = [t for t in teams if t in df_vs.columns]
-                                cols = ["팀명"] + available_teams
-                                df_vs = df_vs[[c for c in cols if c in df_vs.columns]].copy()
-                                for c in df_vs.columns[1:]:
-                                    df_vs[c] = df_vs[c].astype(str).str.replace(r"\s+", "", regex=True)
-                                return df_vs
+                                        new_cols.append(col_str)
                             
-                            df_vs = normalize_tvt(df_vs_raw, teams)
-                            
-                            def parse_wlt(cell):
-                                s = str(cell).strip()
-                                if s in ["■", "-", "—", "–", "nan", "None", ""] or s.lower() == "nan":
-                                    return (np.nan, np.nan, np.nan)
-                                parts = s.split("-")
-                                try:
-                                    if len(parts) == 3:
-                                        return int(parts[0]), int(parts[1]), int(parts[2])
-                                    if len(parts) == 2:
-                                        return int(parts[0]), int(parts[1]), 0
-                                except:
-                                    pass
+                            df_vs.columns = new_cols
+                            if "팀명" not in df_vs.columns:
+                                df_vs.rename(columns={df_vs.columns[0]: "팀명"}, inplace=True)
+                            df_vs["팀명"] = df_vs["팀명"].astype(str).str.strip()
+                            available_teams = [t for t in teams if t in df_vs.columns]
+                            cols = ["팀명"] + available_teams
+                            df_vs = df_vs[[c for c in cols if c in df_vs.columns]].copy()
+                            for c in df_vs.columns[1:]:
+                                df_vs[c] = df_vs[c].astype(str).str.replace(r"\s+", "", regex=True)
+                            return df_vs
+                        
+                        df_vs = normalize_tvt(df_vs_raw, teams)
+                        
+                        def parse_wlt(cell):
+                            s = str(cell).strip()
+                            if s in ["■", "-", "—", "–", "nan", "None", ""] or s.lower() == "nan":
                                 return (np.nan, np.nan, np.nan)
-                            
-                            W = np.zeros((n, n), dtype=int)
-                            L = np.zeros((n, n), dtype=int)
-                            T = np.zeros((n, n), dtype=int)
-                            
-                            for _, row in df_vs.iterrows():
-                                i = idx.get(row["팀명"])
-                                if i is None:
+                            parts = s.split("-")
+                            try:
+                                if len(parts) == 3:
+                                    return int(parts[0]), int(parts[1]), int(parts[2])
+                                if len(parts) == 2:
+                                    return int(parts[0]), int(parts[1]), 0
+                            except:
+                                pass
+                            return (np.nan, np.nan, np.nan)
+                        
+                        W = np.zeros((n, n), dtype=int)
+                        L = np.zeros((n, n), dtype=int)
+                        T = np.zeros((n, n), dtype=int)
+                        
+                        for _, row in df_vs.iterrows():
+                            i = idx.get(row["팀명"])
+                            if i is None:
+                                continue
+                            for opp in teams:
+                                if opp not in df_vs.columns or i == idx[opp]:
                                     continue
-                                for opp in teams:
-                                    if opp not in df_vs.columns or i == idx[opp]:
-                                        continue
-                                    w, l, t = parse_wlt(row[opp])
-                                    if not np.isnan(w):
-                                        j = idx[opp]
-                                        W[i, j], L[i, j], T[i, j] = int(w), int(l), int(t)
+                                w, l, t = parse_wlt(row[opp])
+                                if not np.isnan(w):
+                                    j = idx[opp]
+                                    W[i, j], L[i, j], T[i, j] = int(w), int(l), int(t)
+                        
+                        for i in range(n):
+                            for j in range(n):
+                                if i == j:
+                                    continue
+                                W[j, i], L[j, i], T[j, i] = L[i, j], W[i, j], T[i, j]
+                        
+                        G_played = W + L + T
+                        
+                        def bt_fit(W, T, G, max_iter=1000, tol=1e-10):
+                            n = W.shape[0]
+                            s = np.ones(n)
+                            s /= s.sum()
                             
-                            for i in range(n):
-                                for j in range(n):
-                                    if i == j:
-                                        continue
-                                    W[j, i], L[j, i], T[j, i] = L[i, j], W[i, j], T[i, j]
+                            def update(s):
+                                new_s = np.zeros_like(s, dtype=float)
+                                for i in range(n):
+                                    w_i = (W[i, :] + 0.5 * T[i, :]).sum()
+                                    denom = 0.0
+                                    for j in range(n):
+                                        if i == j:
+                                            continue
+                                        n_ij = G[i, j]
+                                        if n_ij > 0:
+                                            denom += n_ij / (s[i] + s[j])
+                                    new_s[i] = w_i / denom if denom > 0 else s[i]
+                                new_s = np.clip(new_s, 1e-12, None)
+                                return new_s / new_s.sum()
                             
-                            G_played = W + L + T
+                            for _ in range(max_iter):
+                                new_s = update(s)
+                                if np.max(np.abs(new_s - s)) < tol:
+                                    return new_s
+                                s = new_s
+                            return s
+                        
+                        s = bt_fit(W, T, G_played)
+                        S = s.reshape(-1, 1)
+                        
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            P = S / (S + S.T)
+                            P = np.nan_to_num(P, nan=0.5, posinf=1.0, neginf=0.0)
+                            P = np.clip(P, 0.0, 1.0)
+                        np.fill_diagonal(P, 0.0)
+                        
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            tie_pair = np.where(G_played > 0, T / G_played, np.nan)
+                        league_tie_rate = float(np.nanmean(tie_pair))
+                        tie_pair = np.where(np.isnan(tie_pair), league_tie_rate, tie_pair)
+                        tie_pair = np.nan_to_num(tie_pair, nan=0.0, posinf=1.0, neginf=0.0)
+                        tie_pair = np.clip(tie_pair, 0.0, 1.0)
+                        np.fill_diagonal(tie_pair, 0.0)
+                        
+                        TARGET_PER_PAIR = 16
+                        R = np.maximum(0, TARGET_PER_PAIR - G_played)
+                        np.fill_diagonal(R, 0)
+                        
+                        SEASONS = 100_000  # 빠른 계산을 위해 줄임
+                        rng = np.random.default_rng(42)
+                        
+                        cur_w = df_final.set_index("팀명").loc[teams, "승"].to_numpy()
+                        cur_l = df_final.set_index("팀명").loc[teams, "패"].to_numpy()
+                        cur_t = df_final.set_index("팀명").loc[teams, "무"].to_numpy()
+                        
+                        final_w = np.zeros((SEASONS, n), dtype=np.int32)
+                        final_l = np.zeros((SEASONS, n), dtype=np.int32)
+                        final_t = np.zeros((SEASONS, n), dtype=np.int32)
+                        
+                        pairs = [(i, j) for i in range(n) for j in range(i + 1, n) if R[i, j] > 0]
+                        for (i, j) in pairs:
+                            r = int(R[i, j])
+                            tie_prob = np.clip(float(tie_pair[i, j]), 0.0, 1.0)
+                            win_prob = np.clip(float(P[i, j]), 0.0, 1.0)
                             
-                            def bt_fit(W, T, G, max_iter=1000, tol=1e-10):
-                                n = W.shape[0]
-                                s = np.ones(n)
-                                s /= s.sum()
-                                
-                                def update(s):
-                                    new_s = np.zeros_like(s, dtype=float)
-                                    for i in range(n):
-                                        w_i = (W[i, :] + 0.5 * T[i, :]).sum()
-                                        denom = 0.0
-                                        for j in range(n):
-                                            if i == j:
-                                                continue
-                                            n_ij = G[i, j]
-                                            if n_ij > 0:
-                                                denom += n_ij / (s[i] + s[j])
-                                        new_s[i] = w_i / denom if denom > 0 else s[i]
-                                    new_s = np.clip(new_s, 1e-12, None)
-                                    return new_s / new_s.sum()
-                                
-                                for _ in range(max_iter):
-                                    new_s = update(s)
-                                    if np.max(np.abs(new_s - s)) < tol:
-                                        return new_s
-                                    s = new_s
-                                return s
+                            ties = rng.binomial(r, tie_prob, size=SEASONS)
+                            non_ties = r - ties
+                            wins_i = rng.binomial(non_ties, win_prob, size=SEASONS)
+                            wins_j = non_ties - wins_i
                             
-                            s = bt_fit(W, T, G_played)
-                            S = s.reshape(-1, 1)
-                            
-                            with np.errstate(divide='ignore', invalid='ignore'):
-                                P = S / (S + S.T)
-                                P = np.nan_to_num(P, nan=0.5, posinf=1.0, neginf=0.0)
-                                P = np.clip(P, 0.0, 1.0)
-                            np.fill_diagonal(P, 0.0)
-                            
-                            with np.errstate(divide='ignore', invalid='ignore'):
-                                tie_pair = np.where(G_played > 0, T / G_played, np.nan)
-                            league_tie_rate = float(np.nanmean(tie_pair))
-                            tie_pair = np.where(np.isnan(tie_pair), league_tie_rate, tie_pair)
-                            tie_pair = np.nan_to_num(tie_pair, nan=0.0, posinf=1.0, neginf=0.0)
-                            tie_pair = np.clip(tie_pair, 0.0, 1.0)
-                            np.fill_diagonal(tie_pair, 0.0)
-                            
-                            TARGET_PER_PAIR = 16
-                            R = np.maximum(0, TARGET_PER_PAIR - G_played)
-                            np.fill_diagonal(R, 0)
-                            
-                            SEASONS = 100_000  # 빠른 계산을 위해 줄임
-                            rng = np.random.default_rng(42)
-                            
-                            cur_w = df_final.set_index("팀명").loc[teams, "승"].to_numpy()
-                            cur_l = df_final.set_index("팀명").loc[teams, "패"].to_numpy()
-                            cur_t = df_final.set_index("팀명").loc[teams, "무"].to_numpy()
-                            
-                            final_w = np.zeros((SEASONS, n), dtype=np.int32)
-                            final_l = np.zeros((SEASONS, n), dtype=np.int32)
-                            final_t = np.zeros((SEASONS, n), dtype=np.int32)
-                            
-                            pairs = [(i, j) for i in range(n) for j in range(i + 1, n) if R[i, j] > 0]
-                            for (i, j) in pairs:
-                                r = int(R[i, j])
-                                tie_prob = np.clip(float(tie_pair[i, j]), 0.0, 1.0)
-                                win_prob = np.clip(float(P[i, j]), 0.0, 1.0)
-                                
-                                ties = rng.binomial(r, tie_prob, size=SEASONS)
-                                non_ties = r - ties
-                                wins_i = rng.binomial(non_ties, win_prob, size=SEASONS)
-                                wins_j = non_ties - wins_i
-                                
-                                final_w[:, i] += wins_i
-                                final_l[:, i] += wins_j
-                                final_t[:, i] += ties
-                                final_w[:, j] += wins_j
-                                final_l[:, j] += wins_i
-                                final_t[:, j] += ties
-                            
-                            final_w += cur_w
-                            final_l += cur_l
-                            final_t += cur_t
-                            
-                            games_tot = final_w + final_l + final_t
-                            with np.errstate(divide='ignore', invalid='ignore'):
-                                win_pct = (final_w + 0.5 * final_t) / np.maximum(1, games_tot)
-                                win_pct = np.nan_to_num(win_pct, nan=0.0, posinf=1.0, neginf=0.0)
-                                win_pct = np.clip(win_pct, 0.0, 1.0)
-                            
-                            noise = rng.normal(0, 1e-9, size=win_pct.shape)
-                            rank_order = np.argsort(-(win_pct + noise), axis=1)
-                            seed = np.empty_like(rank_order)
-                            for s_idx in range(SEASONS):
-                                seed[s_idx, rank_order[s_idx]] = np.arange(1, n + 1)
-                            
-                            # 순위 분포 계산
-                            rank_pct = np.zeros((n, n), dtype=float)
-                            for i in range(n):
-                                counts = np.bincount(seed[:, i], minlength=n + 1)[1:]
-                                rank_pct[i] = (counts / SEASONS) * 100.0
-                            
-                            # 팀별 결과 저장
-                            for i, team in enumerate(teams):
-                                bt_results[team] = {
-                                    '1위확률': rank_pct[i, 0],  # 1위 확률
-                                    '1-5위확률': rank_pct[i, :5].sum()  # 1~5위 확률
-                                }
-                except Exception as e:
-                    st.warning(f"Bradley-Terry 모형 계산 중 오류: {e}")
-                
-                # 피타고리안 승률 추가
-                log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
-                log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
-                
-                # Bradley-Terry 모형 결과 추가
-                if bt_results:
-                    log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
-                    log_df['BT_1-5위확률'] = log_df['팀명'].map({team: results['1-5위확률'] for team, results in bt_results.items()})
-                else:
-                    log_df['BT_1위확률'] = np.nan
-                    log_df['BT_1-5위확률'] = np.nan
-                
-                # 기준일은 순위 페이지에서 추출한 date_info 사용
-                base_date = _parse_kbo_date_info_to_date(date_info) if date_info else None
-                append_simulation_to_sheet(log_df, "SimulationLog", base_date=base_date)
+                            final_w[:, i] += wins_i
+                            final_l[:, i] += wins_j
+                            final_t[:, i] += ties
+                            final_w[:, j] += wins_j
+                            final_l[:, j] += wins_i
+                            final_t[:, j] += ties
+                        
+                        final_w += cur_w
+                        final_l += cur_l
+                        final_t += cur_t
+                        
+                        games_tot = final_w + final_l + final_t
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            win_pct = (final_w + 0.5 * final_t) / np.maximum(1, games_tot)
+                            win_pct = np.nan_to_num(win_pct, nan=0.0, posinf=1.0, neginf=0.0)
+                            win_pct = np.clip(win_pct, 0.0, 1.0)
+                        
+                        noise = rng.normal(0, 1e-9, size=win_pct.shape)
+                        rank_order = np.argsort(-(win_pct + noise), axis=1)
+                        seed = np.empty_like(rank_order)
+                        for s_idx in range(SEASONS):
+                            seed[s_idx, rank_order[s_idx]] = np.arange(1, n + 1)
+                        
+                        # 순위 분포 계산
+                        rank_pct = np.zeros((n, n), dtype=float)
+                        for i in range(n):
+                            counts = np.bincount(seed[:, i], minlength=n + 1)[1:]
+                            rank_pct[i] = (counts / SEASONS) * 100.0
+                        
+                        # 팀별 결과 저장
+                        for i, team in enumerate(teams):
+                            bt_results[team] = {
+                                '1위확률': rank_pct[i, 0],  # 1위 확률
+                                '1-5위확률': rank_pct[i, :5].sum()  # 1~5위 확률
+                            }
+            except Exception as e:
+                st.warning(f"Bradley-Terry 모형 계산 중 오류: {e}")
+            
+            # 피타고리안 승률 추가
+            log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
+            log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
+            
+            # Bradley-Terry 모형 결과 추가
+            if bt_results:
+                log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
+                log_df['BT_1-5위확률'] = log_df['팀명'].map({team: results['1-5위확률'] for team, results in bt_results.items()})
+            else:
+                log_df['BT_1위확률'] = np.nan
+                log_df['BT_1-5위확률'] = np.nan
+            
+            # 시뮬레이션 결과를 세션에 저장
+            st.session_state['simulation_results'] = log_df.copy()
+            st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
 
-                display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
-                combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
-                combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
-                combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
+        display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
+        combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
+        combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
+        combined = combined.sort_values('우승확률_퍼센트', ascending=False).reset_index(drop=True)
 
-                # st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
-                disp = clean_dataframe_for_display(combined).rename(
-                    columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
-                )
-                safe_dataframe_display(disp, True, True)
+        # st.subheader("🏆 KBO 우승 확률 & PO 진출 확률")
+        disp = clean_dataframe_for_display(combined).rename(
+            columns={'우승확률_퍼센트':'우승확률','플레이오프진출확률_퍼센트':'PO확률'}
+        )
+        safe_dataframe_display(disp, True, True)
 
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
-                                 color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
-                    try:
-                        fig.update_traces(text=combined['우승확률_퍼센트'], texttemplate='%{text:.3f}%', textposition='outside', cliponaxis=False)
-                    except Exception:
-                        pass
-                    fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
-                    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
-                    st.plotly_chart(fig, use_container_width=True)
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            fig = px.bar(combined, x='팀명', y='우승확률_퍼센트', title="팀별 우승 확률",
+                         color='우승확률_퍼센트', color_continuous_scale='RdYlGn')
+            try:
+                fig.update_traces(text=combined['우승확률_퍼센트'], texttemplate='%{text:.3f}%', textposition='outside', cliponaxis=False)
+            except Exception:
+                pass
+            fig.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
+            fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
+            st.plotly_chart(fig, use_container_width=True)
 
-                with cc2:
-                    fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
-                                color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
-                    try:
-                        fig2.update_traces(text=combined['플레이오프진출확률_퍼센트'], texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
-                    except Exception:
-                        pass
-                    fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
-                    fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                    fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
-                    st.plotly_chart(fig2, use_container_width=True)
-                st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
+        with cc2:
+            fig2 = px.bar(combined, x='팀명', y='플레이오프진출확률_퍼센트', title="팀별 플레이오프 진출 확률",
+                        color='플레이오프진출확률_퍼센트', color_continuous_scale='Blues')
+            try:
+                fig2.update_traces(text=combined['플레이오프진출확률_퍼센트'], texttemplate='%{text:.2f}%', textposition='outside', cliponaxis=False)
+            except Exception:
+                pass
+            fig2.update_layout(xaxis_tickangle=-45, showlegend=False, coloraxis_showscale=False)
+            fig2.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+            fig2.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', range=[0,100], dtick=10, ticksuffix='%')
+            st.plotly_chart(fig2, use_container_width=True)
+        st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
+
+        # 시뮬레이션 결과 업로드 버튼
+        st.markdown("---")
+        if st.button("시뮬레이션 결과 업로드", type="primary"):
+            if 'simulation_results' in st.session_state and 'base_date' in st.session_state:
+                with st.spinner("구글 시트에 업로드 중..."):
+                    append_simulation_to_sheet(
+                        st.session_state['simulation_results'], 
+                        "SimulationLog", 
+                        base_date=st.session_state['base_date']
+                    )
+                st.success("시뮬레이션 결과가 구글 시트에 업로드되었습니다!")
+            else:
+                st.error("시뮬레이션 결과가 없습니다. 페이지를 새로고침 후 다시 시도해주세요.")
 
         # Bradley-Terry 모형 기반 순위 예측 히트맵
         st.markdown("### Bradley-Terry 모형 기반 시뮬레이션")
