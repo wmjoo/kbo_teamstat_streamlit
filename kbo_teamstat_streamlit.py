@@ -943,8 +943,8 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
         return winners
 
     wins_count = {n: 0 for n in names}
-    prog = st.progress(0.0)
-    text = st.empty()
+    # prog = st.progress(0.0)
+    # text = st.empty()
 
     # 배치 처리로 메모리/속도 균형
     batch = 10_000
@@ -1021,8 +1021,8 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
 
     top_k = min(5, T)
     po_counts = {n: 0 for n in names}
-    prog = st.progress(0.0)
-    text = st.empty()
+    # prog = st.progress(0.0)
+    # text = st.empty()
 
     batch = 10_000
     n_batches = int(np.ceil(num_simulations / batch))
