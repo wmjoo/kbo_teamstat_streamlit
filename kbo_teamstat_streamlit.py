@@ -2185,7 +2185,7 @@ def main():
                         pivot_bt5 = pivot_bt5.reindex(columns=existing_cols_bt5)
                     pivot_bt5 = pivot_bt5.dropna(how='all')
                     with st.expander("🔎 일자별 Bradley-Terry 5위 이내 진출 확률", expanded=False):
-                        safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=True, hide_index=True)
+                        safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=False, hide_index=True)
                 except Exception:
                     pass
 
