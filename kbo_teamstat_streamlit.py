@@ -1572,44 +1572,87 @@ def main():
                     
                     # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
                     fig_heatmap = go.Figure()
-                    
-                    # 현재 순위 순서로 팀 정렬 (1위부터 10위까지)
+
+                    # 현재 순위 순서로 팀 정렬 (1위 → 10위)
                     current_rank_order = df_final.sort_values('순위')['팀명'].tolist()
+
                     # rank_pct 행렬을 현재 순위 순서로 재정렬
-                    rank_pct_sorted = rank_pct[[teams.index(team) for team in current_rank_order]]
-                    teams_sorted = current_rank_order
-                    
+                    idx_map = [teams.index(t) for t in current_rank_order]
+                    rank_pct_sorted = rank_pct[idx_map, :]  # 행(팀) 재정렬
+                    teams_sorted = current_rank_order       # y축 카테고리 순서로 사용할 리스트
+
                     # 흰색→빨강 색상맵
                     colorscale = [[0, 'white'], [1, 'red']]
-                    
+
                     fig_heatmap.add_trace(go.Heatmap(
                         z=rank_pct_sorted,
-                        x=rank_cols,
-                        y=teams_sorted,
+                        x=[f"{r}위" for r in range(1, n + 1)],
+                        y=teams_sorted,                 # y에 카테고리값을 그대로 줌
                         colorscale=colorscale,
-                        zmin=0,
-                        zmax=100,
+                        zmin=0, zmax=100,
                         text=rank_pct_sorted.round(1),
                         texttemplate="%{text:.2f}",
                         textfont={"size": 10},
-                        showscale=True,
-                        colorbar=dict(title=dict(text="확률 (%)", side="right")),
-                        showlegend=False
+                        showscale=False,                # ✅ 색상바(=범례처럼 보이는 것) 끄기
                     ))
-                    
+
                     fig_heatmap.update_layout(
                         title=f"Bradley-Terry 모형 기반 팀별 최종 순위 예측 ({int(SEASONS/10000)}만 회 시뮬레이션)",
                         xaxis_title="최종 순위",
                         yaxis_title="팀명 (현재 순위 순)",
-                        width=800,
-                        height=500,
-                        showlegend=False
+                        width=800, height=500,
                     )
-                    
+
+                    # ✅ y축 카테고리 순서 ‘고정’
+                    fig_heatmap.update_yaxes(
+                        type='category',
+                        categoryorder='array',
+                        categoryarray=teams_sorted,     # 원하는 순서 명시
+                        showgrid=False
+                    )
                     fig_heatmap.update_xaxes(showgrid=False)
-                    fig_heatmap.update_yaxes(showgrid=False)
+
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+                    # # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
+                    # fig_heatmap = go.Figure()
                     
-                    st.plotly_chart(fig_heatmap, use_container_width=True)                    
+                    # # 현재 순위 순서로 팀 정렬 (1위부터 10위까지)
+                    # current_rank_order = df_final.sort_values('순위')['팀명'].tolist()
+                    # # rank_pct 행렬을 현재 순위 순서로 재정렬
+                    # rank_pct_sorted = rank_pct[[teams.index(team) for team in current_rank_order]]
+                    # teams_sorted = current_rank_order
+                    
+                    # # 흰색→빨강 색상맵
+                    # colorscale = [[0, 'white'], [1, 'red']]
+                    
+                    # fig_heatmap.add_trace(go.Heatmap(
+                    #     z=rank_pct_sorted,
+                    #     x=rank_cols,
+                    #     y=teams_sorted,
+                    #     colorscale=colorscale,
+                    #     zmin=0,
+                    #     zmax=100,
+                    #     text=rank_pct_sorted.round(1),
+                    #     texttemplate="%{text:.2f}",
+                    #     textfont={"size": 10},
+                    #     showscale=True,
+                    #     colorbar=dict(title=dict(text="확률 (%)", side="right")),
+                    #     showlegend=False
+                    # ))
+                    
+                    # fig_heatmap.update_layout(
+                    #     title=f"Bradley-Terry 모형 기반 팀별 최종 순위 예측 ({int(SEASONS/10000)}만 회 시뮬레이션)",
+                    #     xaxis_title="최종 순위",
+                    #     yaxis_title="팀명 (현재 순위 순)",
+                    #     width=800,
+                    #     height=500,
+                    #     showlegend=False
+                    # )
+                    
+                    # fig_heatmap.update_xaxes(showgrid=False)
+                    # fig_heatmap.update_yaxes(showgrid=False)
+                    
+                    # st.plotly_chart(fig_heatmap, use_container_width=True)                    
                     st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
                                         # 결과 테이블 표시 (현재 순위 순서로 정렬)
                     # 6) 팀간 승패표 표시
