@@ -2031,6 +2031,12 @@ def main():
                 # 동적 날짜 범위 설정
                 if date_range_win:
                     fig_c.update_xaxes(range=date_range_win)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_c.update_layout(
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
                 st.plotly_chart(fig_c, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2076,6 +2082,12 @@ def main():
                 # 동적 날짜 범위 설정
                 if date_range_po:
                     fig_p.update_xaxes(range=date_range_po)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_p.update_layout(
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
                 st.plotly_chart(fig_p, use_container_width=True)
                 try:
                     pivot_po = (
@@ -2121,6 +2133,12 @@ def main():
                 # 동적 날짜 범위 설정
                 if date_range_pyt:
                     fig_pyt.update_xaxes(range=date_range_pyt)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_pyt.update_layout(
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
                 st.plotly_chart(fig_pyt, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2166,6 +2184,12 @@ def main():
                 # 동적 날짜 범위 설정
                 if date_range_bt1:
                     fig_bt1.update_xaxes(range=date_range_bt1)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_bt1.update_layout(
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
                 st.plotly_chart(fig_bt1, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2211,6 +2235,12 @@ def main():
                 # 동적 날짜 범위 설정
                 if date_range_bt5:
                     fig_bt5.update_xaxes(range=date_range_bt5)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_bt5.update_layout(
+                    margin=dict(l=50, r=50, t=50, b=50),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
                 st.plotly_chart(fig_bt5, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
