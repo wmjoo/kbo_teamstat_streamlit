@@ -979,12 +979,12 @@ def calculate_championship_probability(teams_df: pd.DataFrame, num_simulations: 
         for i in idx:
             wins_count[names[int(i)]] += 1
 
-        if b % 2 == 0:
-            prog.progress((b + 1) / n_batches)
-            text.text(f"우승 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
+        # if b % 2 == 0:
+        #     prog.progress((b + 1) / n_batches)
+        #     text.text(f"우승 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
 
-    prog.progress(1.0)
-    text.text("우승 확률 계산 완료!")
+    # prog.progress(1.0)
+    # text.text("우승 확률 계산 완료!")
     return {k: v / num_simulations * 100.0 for k, v in wins_count.items()}
 
 def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int = 50_000) -> dict:
@@ -1059,12 +1059,12 @@ def calculate_playoff_probability(teams_df: pd.DataFrame, num_simulations: int =
             for i in row:
                 po_counts[names[int(i)]] += 1
 
-        if b % 2 == 0:
-            prog.progress((b + 1) / n_batches)
-            text.text(f"플레이오프 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
+    #     if b % 2 == 0:
+    #         prog.progress((b + 1) / n_batches)
+    #         text.text(f"플레이오프 확률 계산 중... {min((b + 1) * batch, num_simulations):,}/{num_simulations:,}")
 
-    prog.progress(1.0)
-    text.text("플레이오프 확률 계산 완료!")
+    # prog.progress(1.0)
+    # text.text("플레이오프 확률 계산 완료!")
     return {k: v / num_simulations * 100.0 for k, v in po_counts.items()}
 
 def _validate_sim_inputs(df_final: pd.DataFrame) -> bool:
@@ -1524,20 +1524,6 @@ def main():
             st.plotly_chart(fig2, use_container_width=True)
         st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
-        # 시뮬레이션 결과 업로드 버튼
-        st.markdown("---")
-        if st.button("시뮬레이션 결과 업로드", type="primary"):
-            if 'simulation_results' in st.session_state and 'base_date' in st.session_state:
-                with st.spinner("구글 시트에 업로드 중..."):
-                    append_simulation_to_sheet(
-                        st.session_state['simulation_results'], 
-                        "SimulationLog", 
-                        base_date=st.session_state['base_date']
-                    )
-                st.success("시뮬레이션 결과가 구글 시트에 업로드되었습니다!")
-            else:
-                st.error("시뮬레이션 결과가 없습니다. 페이지를 새로고침 후 다시 시도해주세요.")
-
         # Bradley-Terry 모형 기반 순위 예측 히트맵
         st.markdown("### Bradley-Terry 모형 기반 시뮬레이션")
         st.markdown("""
@@ -1894,6 +1880,21 @@ def main():
                     st.write(f"G_played 행렬 형태: {G_played.shape}")
                 except Exception as debug_e:
                     st.write(f"디버그 정보 출력 중 오류: {debug_e}")
+
+        # 시뮬레이션 결과 업로드 버튼
+        st.markdown("---")
+        if st.button("시뮬레이션 결과 업로드", type="primary"):
+            if 'simulation_results' in st.session_state and 'base_date' in st.session_state:
+                with st.spinner("구글 시트에 업로드 중..."):
+                    append_simulation_to_sheet(
+                        st.session_state['simulation_results'], 
+                        "SimulationLog", 
+                        base_date=st.session_state['base_date']
+                    )
+                st.success("시뮬레이션 결과가 구글 시트에 업로드되었습니다!")
+            else:
+                st.error("시뮬레이션 결과가 없습니다. 페이지를 새로고침 후 다시 시도해주세요.")
+
 
     with tab5:
         # st.header("📅 시뮬레이션 이력")
