@@ -1554,17 +1554,6 @@ def main():
                     # 6) 팀간 승패표 표시
                     st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
                     
-                    # 디버그: 원본 데이터 확인
-                    with st.expander("🔍 팀간 승패표 디버그", expanded=False):
-                        st.write("원본 팀간 승패표:")
-                        st.write(df_vs_raw.head())
-                        st.write("정규화된 팀간 승패표:")
-                        st.write(df_vs.head())
-                        st.write("팀 목록:", teams)
-                        st.write("W 행렬 합계:", W.sum())
-                        st.write("L 행렬 합계:", L.sum())
-                        st.write("T 행렬 합계:", T.sum())
-                    
                     # 승패무 행렬을 보기 좋게 표시
                     def create_vs_table(W, L, T, teams):
                         vs_data = []
@@ -1607,7 +1596,7 @@ def main():
                         zmin=0,
                         zmax=100,
                         text=rank_pct_sorted.round(1),
-                        texttemplate="%{text:.1f}",
+                        texttemplate="%{text:.2f}",
                         textfont={"size": 10},
                         showscale=True,
                         colorbar=dict(title=dict(text="확률 (%)", side="right")),
@@ -1626,14 +1615,14 @@ def main():
                     fig_heatmap.update_xaxes(showgrid=False)
                     fig_heatmap.update_yaxes(showgrid=False)
                     
-                    st.plotly_chart(fig_heatmap, use_container_width=True)
-                    
-                    # 결과 테이블 표시 (현재 순위 순서로 정렬)
-                    st.subheader("📊 순위별 확률 분포 (%)")
-                    rank_df_sorted = rank_df.loc[current_rank_order].reset_index().rename(columns={"index": "팀명"})
-                    safe_dataframe_display(rank_df_sorted, use_container_width=True, hide_index=True)
-                    
+                    st.plotly_chart(fig_heatmap, use_container_width=True)                    
                     st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
+                                        # 결과 테이블 표시 (현재 순위 순서로 정렬)
+                    st.expander("🔍 순위별 확률 분포 (%)", expanded=False)
+                        # st.subheader("📊 순위별 확률 분포 (%)")
+                        rank_df_sorted = rank_df.loc[current_rank_order].reset_index().rename(columns={"index": "팀명"})
+                        safe_dataframe_display(rank_df_sorted, use_container_width=True, hide_index=True)
+
                     
                 except Exception as e:
                     st.error(f"Bradley-Terry 모형 계산 중 오류가 발생했습니다: {str(e)}")
