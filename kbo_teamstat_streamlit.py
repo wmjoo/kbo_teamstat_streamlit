@@ -1604,6 +1604,7 @@ def main():
                     )
 
                     # ✅ y축 카테고리 순서 ‘고정’
+                    st.write(teams_sorted)
                     fig_heatmap.update_yaxes(
                         type='category',
                         categoryorder='array',
