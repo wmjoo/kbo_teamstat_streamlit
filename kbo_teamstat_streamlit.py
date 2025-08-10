@@ -1363,14 +1363,36 @@ def main():
                     
                     # 팀간 승패표 정규화
                     def normalize_tvt(df_vs, teams):
-                        df_vs.columns = [str(c).strip() for c in df_vs.columns]
+                        # 컬럼명에서 팀명만 추출 (예: "LG (승-패-무)" -> "LG")
+                        new_cols = []
+                        for c in df_vs.columns:
+                            col_str = str(c).strip()
+                            if col_str == "팀명":
+                                new_cols.append("팀명")
+                            else:
+                                # 팀명 추출 (괄호 앞부분)
+                                team_name = col_str.split(" (")[0].strip()
+                                if team_name in teams:
+                                    new_cols.append(team_name)
+                                else:
+                                    new_cols.append(col_str)
+                        
+                        df_vs.columns = new_cols
+                        
+                        # 팀명 컬럼 처리
                         if "팀명" not in df_vs.columns:
                             df_vs.rename(columns={df_vs.columns[0]: "팀명"}, inplace=True)
                         df_vs["팀명"] = df_vs["팀명"].astype(str).str.strip()
-                        cols = ["팀명"] + [t for t in teams if t in df_vs.columns]
+                        
+                        # 필요한 컬럼만 선택
+                        available_teams = [t for t in teams if t in df_vs.columns]
+                        cols = ["팀명"] + available_teams
                         df_vs = df_vs[[c for c in cols if c in df_vs.columns]].copy()
+                        
+                        # 데이터 정리
                         for c in df_vs.columns[1:]:
                             df_vs[c] = df_vs[c].astype(str).str.replace(r"\s+", "", regex=True)
+                        
                         return df_vs
                     
                     df_vs = normalize_tvt(df_vs_raw, teams)
