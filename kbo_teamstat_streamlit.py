@@ -1969,11 +1969,8 @@ def main():
             if df_hist.empty:
                 st.info("아직 시뮬레이션 이력이 없습니다.")
                 return
-            # 일자 컬럼 생성
-            # 날짜 소스 선택: 기본은 기준일자(base_date), 필요 시 실행일(timestamp) 기준으로 전환 가능
+
             src_col1, src_col2 = st.columns(2)
-            # with src_col1:
-            #     use_run_date = st.checkbox("실행일(로그 시각) 기준으로 보기", value=False)
             # 기준일자 우선 또는 실행일 선택
             use_run_date = False
             if use_run_date and 'timestamp' in df_hist.columns:
@@ -1996,16 +1993,6 @@ def main():
             
             df_day = df_hist.groupby(['date','팀명'], as_index=False).agg({col: 'mean' for col in agg_cols})
             df_day = df_day.sort_values(['date','팀명'])
-            # 최근 N일 필터
-            # try:
-            #     if df_day['date'].notna().any():
-            #         last_date = pd.to_datetime(df_day['date']).max()
-            #         start_date = (pd.to_datetime(last_date) - pd.Timedelta(days=int(n_days)-1)).date()
-            #         mask = pd.to_datetime(df_day['date']).dt.date >= start_date
-            #         df_day = df_day.loc[mask]
-            # except Exception:
-            #     pass
-
             # 범례(팀명) 정렬: 현재 순위 승률 높은 순
             try:
                 team_order = df_standings.sort_values('승률', ascending=False)['팀명'].tolist() if '승률' in df_standings.columns else df_standings['팀명'].tolist()
@@ -2014,9 +2001,16 @@ def main():
 
             # 팀별 라인플랏(우승) — 일자별 평균
             if {'date','팀명','우승'}.issubset(df_day.columns):
+                # 우승 데이터만 필터링하여 날짜 범위 계산
+                df_win = df_day[df_day['우승'].notna()].copy()
+                if not df_win.empty:
+                    date_range_win = [df_win['date'].min(), df_win['date'].max()]
+                else:
+                    date_range_win = None
+                
                 fig_c = px.line(
                     df_day, x='date', y='우승', color='팀명', markers=show_markers,
-                    title='팀별 우승 확률 (일자별)',
+                    title='팀별 피타고리안 우승 확률 (일자별)',
                     category_orders={'팀명': team_order} if team_order else None
                 )
                 try:
@@ -2034,6 +2028,9 @@ def main():
                 except Exception:
                     pass
                 fig_c.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
+                # 동적 날짜 범위 설정
+                if date_range_win:
+                    fig_c.update_xaxes(range=date_range_win)
                 st.plotly_chart(fig_c, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2050,9 +2047,16 @@ def main():
                     pass
             # 팀별 라인플랏(PO) — 일자별 평균
             if {'date','팀명','PO'}.issubset(df_day.columns):
+                # PO 데이터만 필터링하여 날짜 범위 계산
+                df_po = df_day[df_day['PO'].notna()].copy()
+                if not df_po.empty:
+                    date_range_po = [df_po['date'].min(), df_po['date'].max()]
+                else:
+                    date_range_po = None
+                
                 fig_p = px.line(
                     df_day, x='date', y='PO', color='팀명', markers=show_markers,
-                    title='팀별 PO 진출 확률 (일자별)',
+                    title='팀별 피타고리안 PO 진출 확률 (일자별)',
                     category_orders={'팀명': team_order} if team_order else None
                 )
                 try:
@@ -2069,6 +2073,9 @@ def main():
                 except Exception:
                     pass
                 fig_p.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
+                # 동적 날짜 범위 설정
+                if date_range_po:
+                    fig_p.update_xaxes(range=date_range_po)
                 st.plotly_chart(fig_p, use_container_width=True)
                 try:
                     pivot_po = (
@@ -2086,6 +2093,13 @@ def main():
             # 새로운 그래프들 추가
             # 피타고리안 승률 그래프
             if {'date','팀명','피타고리안승률'}.issubset(df_day.columns):
+                # 피타고리안 승률 데이터만 필터링하여 날짜 범위 계산
+                df_pyt = df_day[df_day['피타고리안승률'].notna()].copy()
+                if not df_pyt.empty:
+                    date_range_pyt = [df_pyt['date'].min(), df_pyt['date'].max()]
+                else:
+                    date_range_pyt = None
+                
                 fig_pyt = px.line(
                     df_day, x='date', y='피타고리안승률', color='팀명', markers=show_markers,
                     title='팀별 피타고리안 승률 (일자별)',
@@ -2104,6 +2118,9 @@ def main():
                 except Exception:
                     pass
                 fig_pyt.update_yaxes(range=[0.25, 0.7], dtick=0.1, tickformat='.1%')
+                # 동적 날짜 범위 설정
+                if date_range_pyt:
+                    fig_pyt.update_xaxes(range=date_range_pyt)
                 st.plotly_chart(fig_pyt, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2121,6 +2138,13 @@ def main():
 
             # Bradley-Terry 1위 확률 그래프
             if {'date','팀명','BT_1위확률'}.issubset(df_day.columns):
+                # BT 1위 확률 데이터만 필터링하여 날짜 범위 계산
+                df_bt1 = df_day[df_day['BT_1위확률'].notna()].copy()
+                if not df_bt1.empty:
+                    date_range_bt1 = [df_bt1['date'].min(), df_bt1['date'].max()]
+                else:
+                    date_range_bt1 = None
+                
                 fig_bt1 = px.line(
                     df_day, x='date', y='BT_1위확률', color='팀명', markers=show_markers,
                     title='팀별 Bradley-Terry 1위 확률 (일자별)',
@@ -2139,6 +2163,9 @@ def main():
                 except Exception:
                     pass
                 fig_bt1.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
+                # 동적 날짜 범위 설정
+                if date_range_bt1:
+                    fig_bt1.update_xaxes(range=date_range_bt1)
                 st.plotly_chart(fig_bt1, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2156,6 +2183,13 @@ def main():
 
             # Bradley-Terry 1-5위 확률 그래프
             if {'date','팀명','BT_1-5위확률'}.issubset(df_day.columns):
+                # BT 1-5위 확률 데이터만 필터링하여 날짜 범위 계산
+                df_bt5 = df_day[df_day['BT_1-5위확률'].notna()].copy()
+                if not df_bt5.empty:
+                    date_range_bt5 = [df_bt5['date'].min(), df_bt5['date'].max()]
+                else:
+                    date_range_bt5 = None
+                
                 fig_bt5 = px.line(
                     df_day, x='date', y='BT_1-5위확률', color='팀명', markers=show_markers,
                     title='팀별 Bradley-Terry 5위 이내 진출 확률(일자별)',
@@ -2174,6 +2208,9 @@ def main():
                 except Exception:
                     pass
                 fig_bt5.update_yaxes(range=[0, 100], dtick=10, ticksuffix='%')
+                # 동적 날짜 범위 설정
+                if date_range_bt5:
+                    fig_bt5.update_xaxes(range=date_range_bt5)
                 st.plotly_chart(fig_bt5, use_container_width=True)
                 # 그래프 바로 아래에 해당 데이터(피벗) 표시
                 try:
@@ -2185,16 +2222,13 @@ def main():
                         pivot_bt5 = pivot_bt5.reindex(columns=existing_cols_bt5)
                     pivot_bt5 = pivot_bt5.dropna(how='all')
                     with st.expander("🔎 일자별 Bradley-Terry 5위 이내 진출 확률", expanded=False):
-                        safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=False, hide_index=True)
+                        safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=True, hide_index=True)
                 except Exception:
                     pass
 
             # 표는 아래로 이동하여 원본 기록을 그대로 표시
             df_hist_sorted = df_hist.sort_values('timestamp') if 'timestamp' in df_hist else df_hist
 
-            # with st.expander("🔎 원본 데이터", expanded=False):
-            #     st.dataframe(df_hist_sorted.drop(columns=['timestamp','date']).sort_values(['base_date', '팀명'], ascending=False), use_container_width=True,
-            #                 hide_index=True)
         except Exception as e:
             st.info("이력 로딩 중 오류가 발생했습니다. " + str(e))
 
