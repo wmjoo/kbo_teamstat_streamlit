@@ -1551,9 +1551,6 @@ def main():
                     rank_cols = [f"{r}위" for r in range(1, n + 1)]
                     rank_df = pd.DataFrame(rank_pct, columns=rank_cols, index=teams).round(1)
                     
-                    # 6) 팀간 승패표 표시
-                    st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
-                    
                     # 승패무 행렬을 보기 좋게 표시
                     def create_vs_table(W, L, T, teams):
                         vs_data = []
@@ -1572,9 +1569,6 @@ def main():
                         
                         vs_cols = ["팀명"] + teams
                         return pd.DataFrame(vs_data, columns=vs_cols)
-                    
-                    vs_table = create_vs_table(W, L, T, teams)
-                    safe_dataframe_display(vs_table, use_container_width=True, hide_index=True)
                     
                     # 7) 히트맵 시각화 (현재 순위 순서로 정렬)
                     fig_heatmap = go.Figure()
@@ -1618,6 +1612,13 @@ def main():
                     st.plotly_chart(fig_heatmap, use_container_width=True)                    
                     st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
                                         # 결과 테이블 표시 (현재 순위 순서로 정렬)
+                    # 6) 팀간 승패표 표시
+                    #   st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
+                    with st.expander("🔍 팀간 승패표 (Bradley-Terry 모형 입력 데이터)", expanded=False):
+                        st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")                    
+                        vs_table = create_vs_table(W, L, T, teams)
+                        safe_dataframe_display(vs_table, use_container_width=True, hide_index=True)
+
                     with st.expander("🔍 순위별 확률 분포 (%)", expanded=False):
                         # st.subheader("📊 순위별 확률 분포 (%)")
                         rank_df_sorted = rank_df.loc[current_rank_order].reset_index().rename(columns={"index": "팀명"})
