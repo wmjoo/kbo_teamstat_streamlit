@@ -1111,7 +1111,7 @@ def _validate_sim_inputs(df_final: pd.DataFrame) -> bool:
 # 메인
 # -----------------------------
 def main():
-    st.markdown('<h1 class="main-header">⚾ KBO 팀 통계 분석기</h1>', unsafe_allow_html=True)
+    st.markdown('<h2 class="main-header">⚾ KBO 팀 통계 분석기</h2>', unsafe_allow_html=True)
 
     # 데이터 로딩
     with st.spinner("실시간 KBO 데이터를 가져오는 중..."):
