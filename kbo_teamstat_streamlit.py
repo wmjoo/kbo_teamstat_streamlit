@@ -1330,7 +1330,7 @@ def main():
                 st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
         # Bradley-Terry 모형 기반 순위 예측 히트맵
-        st.subheader("🔥 Bradley-Terry 모형 순위 예측 히트맵")
+        st.write("🔥 Bradley-Terry 모형 순위 예측 히트맵")
         st.markdown("""
         **방법론**: 팀간 상대 전적을 기반으로 Bradley-Terry 모형으로 팀 강도를 추정하고, 
         상대당 16경기 기준 잔여 일정을 수 만 회 시뮬레이션하여 최종 순위 분포를 예측합니다.
@@ -1653,7 +1653,7 @@ def main():
             # fig_heatmap.update_yaxes(showgrid=False)
             
             # st.plotly_chart(fig_heatmap, use_container_width=True)                    
-            st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
+            # st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
                                 # 결과 테이블 표시 (현재 순위 순서로 정렬)
             # 6) 팀간 승패표 표시
             #   st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
