@@ -1517,42 +1517,68 @@ def main():
         hw_bt1_current = None
         hw_bt1_previous = None
         
-        # 히스토리 데이터에서 최근 1위 확률 가져오기
-        if 'simulation_results' in st.session_state:
-            try:
-                # 히스토리 데이터 로드
-                df_hist = st.session_state.get('simulation_results', pd.DataFrame())
-                if not df_hist.empty and 'BT_1위확률' in df_hist.columns:
-                    # 일자별 집계
-                    df_hist['date'] = pd.to_datetime(df_hist.get('base_date', pd.Timestamp.now().date()))
-                    df_day_bt1 = df_hist.groupby(['date','팀명'], as_index=False).agg({'BT_1위확률': 'mean'})
-                    df_day_bt1 = df_day_bt1.sort_values(['date','팀명'])
+        # 구글 시트에서 히스토리 데이터 가져오기
+        try:
+            ws = _open_log_worksheet("SimulationLog")
+            if ws is not None:
+                values = ws.get_all_values()
+                if values and len(values) >= 2:
+                    header, rows = values[0], values[1:]
+                    df_hist = pd.DataFrame(rows, columns=header)
                     
-                    # 최근 2일 데이터 추출
-                    recent_dates = df_day_bt1['date'].unique()
-                    if len(recent_dates) >= 2:
-                        latest_date = recent_dates[-1]
-                        previous_date = recent_dates[-2]
+                    # 스키마 정규화
+                    rename_map = {
+                        '우승확률_퍼센트': '우승',
+                        '플레이오프진출확률_퍼센트': 'PO',
+                        '팀명': '팀명',
+                        'timestamp': 'timestamp',
+                        'base_date': 'base_date',
+                        '피타고리안승률': '피타고리안승률',
+                        'BT_1위확률': 'BT_1위확률',
+                        'BT_1-5위확률': 'BT_1-5위확률',
+                    }
+                    for k, v in list(rename_map.items()):
+                        if k not in df_hist.columns and v in df_hist.columns:
+                            continue
+                        if k in df_hist.columns:
+                            df_hist.rename(columns={k: v}, inplace=True)
+                    
+                    # 타입 변환
+                    if 'base_date' in df_hist.columns:
+                        df_hist['date'] = pd.to_datetime(df_hist['base_date'], errors='coerce').dt.date
+                    elif 'timestamp' in df_hist.columns:
+                        df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
+                    
+                    if 'BT_1위확률' in df_hist.columns:
+                        df_hist['BT_1위확률'] = pd.to_numeric(df_hist['BT_1위확률'], errors='coerce')
                         
-                        # LG 데이터
-                        lg_latest = df_day_bt1[(df_day_bt1['date'] == latest_date) & (df_day_bt1['팀명'] == 'LG')]
-                        lg_previous = df_day_bt1[(df_day_bt1['date'] == previous_date) & (df_day_bt1['팀명'] == 'LG')]
+                        # 일자별 집계
+                        df_day_bt1 = df_hist.groupby(['date','팀명'], as_index=False).agg({'BT_1위확률': 'mean'})
+                        df_day_bt1 = df_day_bt1.sort_values(['date','팀명'])
                         
-                        if not lg_latest.empty:
-                            lg_bt1_current = lg_latest['BT_1위확률'].iloc[0]
-                        if not lg_previous.empty:
-                            lg_bt1_previous = lg_previous['BT_1위확률'].iloc[0]
+                        # 피벗 테이블 생성
+                        pivot_bt1 = (
+                            df_day_bt1.pivot_table(index='date', columns='팀명', values='BT_1위확률', aggfunc='mean').sort_index()
+                        )
                         
-                        # 한화 데이터
-                        hw_latest = df_day_bt1[(df_day_bt1['date'] == latest_date) & (df_day_bt1['팀명'] == '한화')]
-                        hw_previous = df_day_bt1[(df_day_bt1['date'] == previous_date) & (df_day_bt1['팀명'] == '한화')]
-                        
-                        if not hw_latest.empty:
-                            hw_bt1_current = hw_latest['BT_1위확률'].iloc[0]
-                        if not hw_previous.empty:
-                            hw_bt1_previous = hw_previous['BT_1위확률'].iloc[0]
-            except Exception as e:
-                st.warning(f"1위 확률 데이터 로딩 중 오류: {e}")
+                        if not pivot_bt1.empty:
+                            # 최근 2일 데이터 추출
+                            recent_dates = pivot_bt1.index.tolist()
+                            if len(recent_dates) >= 2:
+                                latest_date = recent_dates[-1]
+                                previous_date = recent_dates[-2]
+                                
+                                # LG 데이터
+                                if 'LG' in pivot_bt1.columns:
+                                    lg_bt1_current = pivot_bt1.loc[latest_date, 'LG']
+                                    lg_bt1_previous = pivot_bt1.loc[previous_date, 'LG']
+                                
+                                # 한화 데이터
+                                if '한화' in pivot_bt1.columns:
+                                    hw_bt1_current = pivot_bt1.loc[latest_date, '한화']
+                                    hw_bt1_previous = pivot_bt1.loc[previous_date, '한화']
+        except Exception as e:
+            st.warning(f"1위 확률 데이터 로딩 중 오류: {e}")
         
         # LG와 한화 1위 확률 메트릭 표시
         if lg_bt1_current is not None or hw_bt1_current is not None:
