@@ -1598,7 +1598,7 @@ def main():
                     ))
                     
                     fig_heatmap.update_layout(
-                        title=f"Bradley-Terry 모형 기반 팀별 최종 순위 예측 ({int(SEASONS) / 10000}만 회 시뮬레이션)",
+                        title=f"Bradley-Terry 모형 기반 팀별 최종 순위 예측 ({int(SEASONS/10000)}만 회 시뮬레이션)",
                         xaxis_title="최종 순위",
                         yaxis_title="팀명 (현재 순위 순)",
                         width=800,
