@@ -2069,7 +2069,7 @@ def main():
                     fig_pyt.update_traces(marker=dict(size=10))
                 except Exception:
                     pass
-                fig_pyt.update_yaxes(range=[0, 1], dtick=0.1, tickformat='.1%')
+                fig_pyt.update_yaxes(range=[0.25, 0.7], dtick=0.1, tickformat='.1%')
                 st.plotly_chart(fig_pyt, use_container_width=True)
 
             # Bradley-Terry 1위 확률 그래프
