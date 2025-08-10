@@ -1532,6 +1532,17 @@ def main():
                     # 6) 팀간 승패표 표시
                     st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
                     
+                    # 디버그: 원본 데이터 확인
+                    with st.expander("🔍 팀간 승패표 디버그", expanded=False):
+                        st.write("원본 팀간 승패표:")
+                        st.write(df_vs_raw.head())
+                        st.write("정규화된 팀간 승패표:")
+                        st.write(df_vs.head())
+                        st.write("팀 목록:", teams)
+                        st.write("W 행렬 합계:", W.sum())
+                        st.write("L 행렬 합계:", L.sum())
+                        st.write("T 행렬 합계:", T.sum())
+                    
                     # 승패무 행렬을 보기 좋게 표시
                     def create_vs_table(W, L, T, teams):
                         vs_data = []
