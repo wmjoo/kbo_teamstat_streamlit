@@ -1333,7 +1333,7 @@ def main():
         st.subheader("🔥 Bradley-Terry 모형 순위 예측 히트맵")
         st.markdown("""
         **방법론**: 팀간 상대 전적을 기반으로 Bradley-Terry 모형으로 팀 강도를 추정하고, 
-        상대당 16경기 기준 잔여 일정을 10만 회 시뮬레이션하여 최종 순위 분포를 예측합니다.
+        상대당 16경기 기준 잔여 일정을 수 만 회 시뮬레이션하여 최종 순위 분포를 예측합니다.
         """)
         
         if st.button("Bradley-Terry 순위 예측 시작"):
@@ -1492,7 +1492,7 @@ def main():
                     R = np.maximum(0, TARGET_PER_PAIR - G_played)
                     np.fill_diagonal(R, 0)
                     
-                    SEASONS = 1_000_000
+                    SEASONS = 300_000
                     rng = np.random.default_rng(42)
                     
                     cur_w = df_final.set_index("팀명").loc[teams, "승"].to_numpy()
@@ -1598,7 +1598,7 @@ def main():
                     ))
                     
                     fig_heatmap.update_layout(
-                        title="Bradley-Terry 모형 기반 팀별 최종 순위 예측 (10만 회 시뮬레이션)",
+                        title=f"Bradley-Terry 모형 기반 팀별 최종 순위 예측 ({int(SEASONS) / 10000}만 회 시뮬레이션)",
                         xaxis_title="최종 순위",
                         yaxis_title="팀명 (현재 순위 순)",
                         width=800,
