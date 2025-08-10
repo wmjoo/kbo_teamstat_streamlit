@@ -2033,7 +2033,7 @@ def main():
                     fig_c.update_xaxes(range=date_range_win)
                 # 마진 설정으로 마커가 잘리지 않도록
                 fig_c.update_layout(
-                    margin=dict(l=50, r=50, t=50, b=50),
+                    margin=dict(l=100, r=100, t=100, b=100),
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
@@ -2084,7 +2084,7 @@ def main():
                     fig_p.update_xaxes(range=date_range_po)
                 # 마진 설정으로 마커가 잘리지 않도록
                 fig_p.update_layout(
-                    margin=dict(l=50, r=50, t=50, b=50),
+                    margin=dict(l=100, r=100, t=100, b=100),
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
@@ -2135,7 +2135,7 @@ def main():
                     fig_pyt.update_xaxes(range=date_range_pyt)
                 # 마진 설정으로 마커가 잘리지 않도록
                 fig_pyt.update_layout(
-                    margin=dict(l=50, r=50, t=50, b=50),
+                    margin=dict(l=100, r=100, t=100, b=100),
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
@@ -2186,7 +2186,7 @@ def main():
                     fig_bt1.update_xaxes(range=date_range_bt1)
                 # 마진 설정으로 마커가 잘리지 않도록
                 fig_bt1.update_layout(
-                    margin=dict(l=50, r=50, t=50, b=50),
+                    margin=dict(l=100, r=100, t=100, b=100),
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
@@ -2237,7 +2237,7 @@ def main():
                     fig_bt5.update_xaxes(range=date_range_bt5)
                 # 마진 설정으로 마커가 잘리지 않도록
                 fig_bt5.update_layout(
-                    margin=dict(l=50, r=50, t=50, b=50),
+                    margin=dict(l=100, r=100, t=100, b=100),
                     xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
                     yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
                 )
