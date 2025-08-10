@@ -1618,7 +1618,7 @@ def main():
                     st.plotly_chart(fig_heatmap, use_container_width=True)                    
                     st.success("Bradley-Terry 모형 순위 예측이 완료되었습니다!")
                                         # 결과 테이블 표시 (현재 순위 순서로 정렬)
-                    st.expander("🔍 순위별 확률 분포 (%)", expanded=False)
+                    st.expander("🔍 순위별 확률 분포 (%)", expanded=False):
                         # st.subheader("📊 순위별 확률 분포 (%)")
                         rank_df_sorted = rank_df.loc[current_rank_order].reset_index().rename(columns={"index": "팀명"})
                         safe_dataframe_display(rank_df_sorted, use_container_width=True, hide_index=True)
