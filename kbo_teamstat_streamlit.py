@@ -1492,7 +1492,7 @@ def main():
                     R = np.maximum(0, TARGET_PER_PAIR - G_played)
                     np.fill_diagonal(R, 0)
                     
-                    SEASONS = 100_000
+                    SEASONS = 1_000_000
                     rng = np.random.default_rng(42)
                     
                     cur_w = df_final.set_index("팀명").loc[teams, "승"].to_numpy()
@@ -1614,8 +1614,7 @@ def main():
                                         # 결과 테이블 표시 (현재 순위 순서로 정렬)
                     # 6) 팀간 승패표 표시
                     #   st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")
-                    with st.expander("🔍 팀간 승패표 (Bradley-Terry 모형 입력 데이터)", expanded=False):
-                        st.subheader("📊 팀간 승패표 (Bradley-Terry 모형 입력 데이터)")                    
+                    with st.expander("🔍 팀간 승패표 (Bradley-Terry 모형 입력 데이터)", expanded=False):                  
                         vs_table = create_vs_table(W, L, T, teams)
                         safe_dataframe_display(vs_table, use_container_width=True, hide_index=True)
 
