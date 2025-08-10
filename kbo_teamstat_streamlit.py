@@ -1269,6 +1269,7 @@ def main():
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
     with tab4:
+        st.markdown("### 피타고리안 승률 기반 시뮬레이션")
         df_final = st.session_state['df_final']
         c1, c2 = st.columns(2)
         with c1:
@@ -1330,7 +1331,7 @@ def main():
                 st.caption(f"원본 데이터: [팀 순위]({KBO_URLS['standings']})")
 
         # Bradley-Terry 모형 기반 순위 예측 히트맵
-        st.markdown("### 🔥 Bradley-Terry 모형 순위 예측 히트맵")
+        st.markdown("### Bradley-Terry 모형 기반 시뮬레이션")
         st.markdown("""
         **방법론**: 팀간 상대 전적을 기반으로 Bradley-Terry 모형으로 팀 강도를 추정하고, 
         상대당 16경기 기준 잔여 일정을 수 만 회 시뮬레이션하여 최종 순위 분포를 예측합니다.
