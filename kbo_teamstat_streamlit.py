@@ -1294,7 +1294,6 @@ def main():
         st.caption(f"원본 데이터: [타자 기본]({KBO_URLS['hitter_basic1']}) · [타자 고급]({KBO_URLS['hitter_basic2']}) · [투수 기본]({KBO_URLS['pitcher_basic1']}) · [투수 고급]({KBO_URLS['pitcher_basic2']}) · [팀 순위]({KBO_URLS['standings']})")
 
     with tab4:
-        st.markdown("### 피타고리안 승률 기반 시뮬레이션")
         df_final = st.session_state['df_final']
         
         # 시뮬레이션 자동 실행 (10만회 고정)
@@ -1645,8 +1644,8 @@ def main():
                     pyt_1st_change = pyt_1st_current - pyt_1st_previous if pyt_1st_previous is not None else 0
                     st.metric(
                         label=f"{pyt_1st_team} 1위확률(피타)",
-                        value=f"{pyt_1st_current:.1f}%",
-                        delta=f"{pyt_1st_change:+.1f}%" if pyt_1st_previous is not None else None
+                        value=f"{pyt_1st_current:.2f}%",
+                        delta=f"{pyt_1st_change:+.2f}%" if pyt_1st_previous is not None else None
                     )
                 else:
                     st.metric(label="피타고리안 1위", value="데이터 없음")
@@ -1657,8 +1656,8 @@ def main():
                     pyt_2nd_change = pyt_2nd_current - pyt_2nd_previous if pyt_2nd_previous is not None else 0
                     st.metric(
                         label=f"{pyt_2nd_team} 1위확률(피타)",
-                        value=f"{pyt_2nd_current:.1f}%",
-                        delta=f"{pyt_2nd_change:+.1f}%" if pyt_2nd_previous is not None else None
+                        value=f"{pyt_2nd_current:.2f}%",
+                        delta=f"{pyt_2nd_change:+.2f}%" if pyt_2nd_previous is not None else None
                     )
                 else:
                     st.metric(label="피타고리안 2위", value="데이터 없음")
@@ -1669,8 +1668,8 @@ def main():
                     bt_1st_change = bt_1st_current - bt_1st_previous if bt_1st_previous is not None else 0
                     st.metric(
                         label=f"{bt_1st_team} 1위확률(BT)",
-                        value=f"{bt_1st_current:.1f}%",
-                        delta=f"{bt_1st_change:+.1f}%" if bt_1st_previous is not None else None
+                        value=f"{bt_1st_current:.2f}%",
+                        delta=f"{bt_1st_change:+.2f}%" if bt_1st_previous is not None else None
                     )
                 else:
                     st.metric(label="Bradley-Terry 1위", value="데이터 없음")
@@ -1681,15 +1680,15 @@ def main():
                     bt_2nd_change = bt_2nd_current - bt_2nd_previous if bt_2nd_previous is not None else 0
                     st.metric(
                         label=f"{bt_2nd_team} 1위확률(BT)",
-                        value=f"{bt_2nd_current:.1f}%",
-                        delta=f"{bt_2nd_change:+.1f}%" if bt_2nd_previous is not None else None
+                        value=f"{bt_2nd_current:.2f}%",
+                        delta=f"{bt_2nd_change:+.2f}%" if bt_2nd_previous is not None else None
                     )
                 else:
                     st.metric(label="Bradley-Terry 2위", value="데이터 없음")
-
+        
+        st.markdown("### 피타고리안 승률 기반 시뮬레이션")
         st.caption("""\
             Miller, Steven J. “A Derivation of the Pythagorean Won-Loss Formula in Baseball.” *arXiv*, 7 Mar. 2006, https://doi.org/10.48550/arXiv.math/0509698.
-            
             Boudreaux, Christopher, et al. “Application of the Pythagorean Expected Wins Percentage and Cross-Validation Methods in Estimating Team Quality.” *arXiv*, 29 Dec. 2021, https://doi.org/10.48550/arXiv.2201.01168.
             """)
         display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
