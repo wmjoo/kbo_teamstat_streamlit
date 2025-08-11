@@ -1736,6 +1736,10 @@ def main():
         **방법론**: 팀간 상대 전적을 기반으로 Bradley-Terry 모형으로 팀 강도를 추정하고, 
         상대당 16경기 기준 잔여 일정을 수 만 회 시뮬레이션하여 최종 순위 분포를 예측합니다.
         """)
+        st.caption("""\
+            Spearing, Jess, Jonathan Tawn, David Irons, and Tim Paulden. “Modelling Intransitivity in Pairwise Comparisons with Application to Baseball Data.” *arXiv*, 16 Feb. 2023, https://doi.org/10.48550/arXiv.2103.12094.
+        """)
+        
         
         # if st.button("Bradley-Terry 순위 예측 시작"):
             # with st.spinner("Bradley-Terry 모형으로 순위 예측 계산 중..."):
