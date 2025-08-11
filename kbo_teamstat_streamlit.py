@@ -1644,7 +1644,7 @@ def main():
                 if pyt_1st_current is not None and pyt_1st_team is not None:
                     pyt_1st_change = pyt_1st_current - pyt_1st_previous if pyt_1st_previous is not None else 0
                     st.metric(
-                        label=f"{pyt_1st_team} 우승확률(피타)",
+                        label=f"{pyt_1st_team} 1위확률(피타)",
                         value=f"{pyt_1st_current:.1f}%",
                         delta=f"{pyt_1st_change:+.1f}%" if pyt_1st_previous is not None else None
                     )
@@ -1656,7 +1656,7 @@ def main():
                 if pyt_2nd_current is not None and pyt_2nd_team is not None:
                     pyt_2nd_change = pyt_2nd_current - pyt_2nd_previous if pyt_2nd_previous is not None else 0
                     st.metric(
-                        label=f"{pyt_2nd_team} 우승확률(피타)",
+                        label=f"{pyt_2nd_team} 1위확률(피타)",
                         value=f"{pyt_2nd_current:.1f}%",
                         delta=f"{pyt_2nd_change:+.1f}%" if pyt_2nd_previous is not None else None
                     )
@@ -1686,7 +1686,12 @@ def main():
                     )
                 else:
                     st.metric(label="Bradley-Terry 2위", value="데이터 없음")
-        
+
+        st.caption("""\
+            Miller, Steven J. “A Derivation of the Pythagorean Won-Loss Formula in Baseball.” *arXiv*, 7 Mar. 2006, https://doi.org/10.48550/arXiv.math/0509698.
+            
+            Boudreaux, Christopher, et al. “Application of the Pythagorean Expected Wins Percentage and Cross-Validation Methods in Estimating Team Quality.” *arXiv*, 29 Dec. 2021, https://doi.org/10.48550/arXiv.2201.01168.
+            """)
         display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
         combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
         combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
