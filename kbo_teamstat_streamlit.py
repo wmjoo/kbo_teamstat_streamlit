@@ -1687,10 +1687,8 @@ def main():
                     st.metric(label="Bradley-Terry 2위", value="데이터 없음")
         
         st.markdown("### 피타고리안 승률 기반 시뮬레이션")
-        st.caption("""\
-            Miller, Steven J. “A Derivation of the Pythagorean Won-Loss Formula in Baseball.” *arXiv*, 7 Mar. 2006, https://doi.org/10.48550/arXiv.math/0509698.
-            Boudreaux, Christopher, et al. “Application of the Pythagorean Expected Wins Percentage and Cross-Validation Methods in Estimating Team Quality.” *arXiv*, 29 Dec. 2021, https://doi.org/10.48550/arXiv.2201.01168.
-            """)
+        st.caption("Miller, Steven J. “A Derivation of the Pythagorean Won-Loss Formula in Baseball.” *arXiv*, 7 Mar. 2006, https://doi.org/10.48550/arXiv.math/0509698.")
+        st.caption("Boudreaux, Christopher, et al. “Application of the Pythagorean Expected Wins Percentage and Cross-Validation Methods in Estimating Team Quality.” *arXiv*, 29 Dec. 2021, https://doi.org/10.48550/arXiv.2201.01168.")
         display_col = '최종기대승수_피타고리안기반' if '최종기대승수_피타고리안기반' in df_final.columns else '승'
         combined = df_final[['순위','팀명',display_col,'우승확률_퍼센트','플레이오프진출확률_퍼센트']].copy()
         combined.rename(columns={display_col:'예상최종승수'}, inplace=True)
