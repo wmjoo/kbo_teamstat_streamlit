@@ -1508,7 +1508,8 @@ def main():
         
         # 시뮬레이션 결과를 세션에 저장
         st.session_state['simulation_results'] = log_df.copy()
-        st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
+        # 현재 날짜를 기준일자로 설정
+        st.session_state['base_date'] = datetime.now().date()
 
         # 최근 확률 데이터 계산 및 표시
         # 피타고리안 승률 기반 우승확률 (1,2위)
