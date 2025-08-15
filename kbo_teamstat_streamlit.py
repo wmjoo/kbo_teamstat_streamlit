@@ -1493,22 +1493,22 @@ def main():
                             }
         except Exception as e:
             st.warning(f"Bradley-Terry 모형 계산 중 오류: {e}")
-            
-            # 피타고리안 승률 추가
-            log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
-            log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
-            
-            # Bradley-Terry 모형 결과 추가
-            if bt_results:
-                log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
-                log_df['BT_1-5위확률'] = log_df['팀명'].map({team: results['1-5위확률'] for team, results in bt_results.items()})
-            else:
-                log_df['BT_1위확률'] = np.nan
-                log_df['BT_1-5위확률'] = np.nan
-            
-            # 시뮬레이션 결과를 세션에 저장
-            st.session_state['simulation_results'] = log_df.copy()
-            st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
+        
+        # 피타고리안 승률 추가
+        log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
+        log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
+        
+        # Bradley-Terry 모형 결과 추가
+        if bt_results:
+            log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
+            log_df['BT_1-5위확률'] = log_df['팀명'].map({team: results['1-5위확률'] for team, results in bt_results.items()})
+        else:
+            log_df['BT_1위확률'] = np.nan
+            log_df['BT_1-5위확률'] = np.nan
+        
+        # 시뮬레이션 결과를 세션에 저장
+        st.session_state['simulation_results'] = log_df.copy()
+        st.session_state['base_date'] = _parse_kbo_date_info_to_date(date_info) if date_info else None
 
         # 최근 확률 데이터 계산 및 표시
         # 피타고리안 승률 기반 우승확률 (1,2위)
@@ -1738,9 +1738,6 @@ def main():
             Spearing, Jess, Jonathan Tawn, David Irons, and Tim Paulden. “Modelling Intransitivity in Pairwise Comparisons with Application to Baseball Data.” *arXiv*, 16 Feb. 2023, https://doi.org/10.48550/arXiv.2103.12094.
         """)
         
-        
-        # if st.button("Bradley-Terry 순위 예측 시작"):
-            # with st.spinner("Bradley-Terry 모형으로 순위 예측 계산 중..."):
         try:
             # 1) 팀간 승패표 크롤링
             url_vs = "https://www.koreabaseball.com/Record/TeamRank/TeamRankDaily.aspx"
