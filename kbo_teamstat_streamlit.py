@@ -1156,23 +1156,6 @@ def main():
 
     # 매직넘버 계산
     first_team_name, magic_number = calculate_magic_number(df_standings)
-    
-    # 매직넘버 표시
-    if first_team_name and magic_number is not None:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.metric(
-                label=f"🏆 {first_team_name} 우승 매직넘버",
-                value=magic_number,
-                help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
-            )
-
-    # 팀명 정규화(병합 전)
-    df_hitter = normalize_team_names(df_hitter)
-    df_hitter_adv = normalize_team_names(df_hitter_adv)
-    df_pitcher = normalize_team_names(df_pitcher)
-    df_pitcher_adv = normalize_team_names(df_pitcher_adv)
-    df_standings = normalize_team_names(df_standings)
 
     if date_info:
         st.markdown(
@@ -1196,6 +1179,17 @@ def main():
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승확률", "📅 히스토리"])
 
     with tab1:
+        # 매직넘버 표시
+        if first_team_name and magic_number is not None:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.metric(
+                    label=f"🏆 {first_team_name} 우승 매직넘버",
+                    value=magic_number,
+                    help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
+                )
+            st.markdown("---")
+        
         # 피타고리안 승률 계산
         df_runs = pd.merge(
             df_hitter[['팀명','R']],
