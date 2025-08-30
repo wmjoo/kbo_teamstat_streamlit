@@ -1641,6 +1641,10 @@ def main():
                     elif 'timestamp' in df_hist.columns:
                         df_hist['date'] = pd.to_datetime(df_hist['timestamp'], errors='coerce').dt.date
                     
+                    # 매직넘버 타입 변환
+                    if '매직넘버' in df_hist.columns:
+                        df_hist['매직넘버'] = pd.to_numeric(df_hist['매직넘버'], errors='coerce')
+                    
                     # 피타고리안 승률 기반 우승확률 처리
                     if '우승' in df_hist.columns and '피타고리안승률' in df_hist.columns:
                         df_hist['우승'] = pd.to_numeric(df_hist['우승'], errors='coerce')
@@ -2218,6 +2222,7 @@ def main():
                 '피타고리안승률': '피타고리안승률',
                 'BT_1위확률': 'BT_1위확률',
                 'BT_1-5위확률': 'BT_1-5위확률',
+                '매직넘버': '매직넘버',
             }
             for k, v in list(rename_map.items()):
                 if k not in df_hist.columns and v in df_hist.columns:
@@ -2237,7 +2242,7 @@ def main():
                 except Exception:
                     pass
             # 수치형 컬럼들 타입 변환
-            numeric_cols = ['우승', 'PO', '피타고리안승률', 'BT_1위확률', 'BT_1-5위확률']
+            numeric_cols = ['우승', 'PO', '피타고리안승률', 'BT_1위확률', 'BT_1-5위확률', '매직넘버']
             for col in numeric_cols:
                 if col in df_hist.columns:
                     df_hist[col] = pd.to_numeric(df_hist[col], errors='coerce')
@@ -2262,7 +2267,7 @@ def main():
             # 일자별 집계: 동일 일자에 여러 로그가 있으면 평균으로 집계(팀별)
             agg_cols = ['우승', 'PO']
             # 새로운 컬럼들이 있으면 추가
-            for col in ['피타고리안승률', 'BT_1위확률', 'BT_1-5위확률']:
+            for col in ['피타고리안승률', 'BT_1위확률', 'BT_1-5위확률', '매직넘버']:
                 if col in df_hist.columns:
                     agg_cols.append(col)
             
