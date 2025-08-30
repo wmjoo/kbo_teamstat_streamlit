@@ -2562,7 +2562,7 @@ def main():
                     fig_magic.update_traces(marker=dict(size=10))
                 except Exception:
                     pass
-                fig_magic.update_yaxes(range=[0, 16], dtick=1)  # 매직넘버는 0-18 범위, 1간격 격자
+                fig_magic.update_yaxes(range=[0, 16.5], dtick=1)  # 매직넘버는 0-18 범위, 1간격 격자
                 # 동적 날짜 범위 설정
                 if date_range_magic:
                     fig_magic.update_xaxes(range=date_range_magic)
