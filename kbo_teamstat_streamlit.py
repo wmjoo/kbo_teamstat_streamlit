@@ -1111,7 +1111,7 @@ def _validate_sim_inputs(df_final: pd.DataFrame) -> bool:
 # 메인
 # -----------------------------
 def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
-    """1위 팀의 우승 매직넘버를 계산합니다."""
+    """1위 팀의 우승 매직넘버를 계산합니다. (무승부 반영)"""
     if df_standings is None or df_standings.empty:
         return None, None
     
@@ -1128,6 +1128,7 @@ def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
     second_losses = int(second_team['패'])
     
     # 매직넘버 = 144 - (1위팀 승수 + 2위팀 패수)
+    # 무승부는 승률 계산에만 반영되고, 매직넘버 계산에는 직접적으로 반영되지 않음
     magic_number = 144 - (first_wins + second_losses)
     
     return first_team['팀명'], magic_number
@@ -1179,17 +1180,6 @@ def main():
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 현재 순위", "🏟️ 팀별 기록", "📊 시각화", "🏆 우승확률", "📅 히스토리"])
 
     with tab1:
-        # 매직넘버 표시
-        if first_team_name and magic_number is not None:
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                st.metric(
-                    label=f"🏆 {first_team_name} 우승 매직넘버",
-                    value=magic_number,
-                    help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
-                )
-            st.markdown("---")
-        
         # 피타고리안 승률 계산
         df_runs = pd.merge(
             df_hitter[['팀명','R']],
@@ -1669,14 +1659,26 @@ def main():
         except Exception as e:
             st.warning(f"확률 데이터 로딩 중 오류: {e}")
         
-        # 4개 컬럼으로 메트릭 표시
+        # 5개 컬럼으로 메트릭 표시 (매직넘버 + 기존 4개)
         if (pyt_1st_current is not None or pyt_2nd_current is not None or 
-            bt_1st_current is not None or bt_2nd_current is not None):
+            bt_1st_current is not None or bt_2nd_current is not None or 
+            first_team_name is not None):
             # st.markdown("### 📊 최근 확률 현황")
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             
-            # 컬럼 1: 피타고리안 승률 기반 1위 우승확률
+            # 컬럼 1: 매직넘버
             with col1:
+                if first_team_name and magic_number is not None:
+                    st.metric(
+                        label=f"🏆 {first_team_name} 매직넘버",
+                        value=magic_number,
+                        help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
+                    )
+                else:
+                    st.metric(label="매직넘버", value="데이터 없음")
+            
+            # 컬럼 2: 피타고리안 승률 기반 1위 우승확률
+            with col2:
                 if pyt_1st_current is not None and pyt_1st_team is not None:
                     pyt_1st_change = pyt_1st_current - pyt_1st_previous if pyt_1st_previous is not None else 0
                     st.metric(
@@ -1687,8 +1689,8 @@ def main():
                 else:
                     st.metric(label="피타고리안 1위", value="데이터 없음")
             
-            # 컬럼 2: 피타고리안 승률 기반 2위 우승확률
-            with col2:
+            # 컬럼 3: 피타고리안 승률 기반 2위 우승확률
+            with col3:
                 if pyt_2nd_current is not None and pyt_2nd_team is not None:
                     pyt_2nd_change = pyt_2nd_current - pyt_2nd_previous if pyt_2nd_previous is not None else 0
                     st.metric(
@@ -1699,8 +1701,8 @@ def main():
                 else:
                     st.metric(label="피타고리안 2위", value="데이터 없음")
             
-            # 컬럼 3: Bradley-Terry 기반 1위 확률
-            with col3:
+            # 컬럼 4: Bradley-Terry 기반 1위 확률
+            with col4:
                 if bt_1st_current is not None and bt_1st_team is not None:
                     bt_1st_change = bt_1st_current - bt_1st_previous if bt_1st_previous is not None else 0
                     st.metric(
@@ -1711,8 +1713,8 @@ def main():
                 else:
                     st.metric(label="Bradley-Terry 1위", value="데이터 없음")
             
-            # 컬럼 4: Bradley-Terry 기반 2위 확률
-            with col4:
+            # 컬럼 5: Bradley-Terry 기반 2위 확률
+            with col5:
                 if bt_2nd_current is not None and bt_2nd_team is not None:
                     bt_2nd_change = bt_2nd_current - bt_2nd_previous if bt_2nd_previous is not None else 0
                     st.metric(
