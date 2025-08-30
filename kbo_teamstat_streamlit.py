@@ -1132,7 +1132,7 @@ def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
     L2 = int(second['패'])
     T2 = int(second.get('무', 0))  # 컬럼명이 '무'가 아니면 여길 맞춰주세요.
 
-    magic = 144 - W1 - L2 - T2
+    magic = 145 - W1 - L2 - T2
     magic = max(magic, 0)  # 음수 방지
     
     return first['팀명'], magic
