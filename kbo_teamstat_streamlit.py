@@ -1528,6 +1528,12 @@ def main():
         log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
         log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
         
+        # 매직넘버 추가 (1위 팀만)
+        if first_team_name and magic_number is not None:
+            log_df['매직넘버'] = log_df['팀명'].apply(lambda x: magic_number if x == first_team_name else np.nan)
+        else:
+            log_df['매직넘버'] = np.nan
+        
         # Bradley-Terry 모형 결과 추가
         if bt_results:
             log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
@@ -1577,6 +1583,7 @@ def main():
                         '피타고리안승률': '피타고리안승률',
                         'BT_1위확률': 'BT_1위확률',
                         'BT_1-5위확률': 'BT_1-5위확률',
+                        '매직넘버': '매직넘버',
                     }
                     for k, v in list(rename_map.items()):
                         if k not in df_hist.columns and v in df_hist.columns:
@@ -2477,6 +2484,57 @@ def main():
                     pivot_bt5 = pivot_bt5.dropna(how='all')
                     with st.expander("🔎 일자별 Bradley-Terry 5위 이내 진출 확률", expanded=False):
                         safe_dataframe_display(pivot_bt5.round(2).reset_index(), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
+
+            # 매직넘버 그래프
+            if {'date','팀명','매직넘버'}.issubset(df_day.columns):
+                # 매직넘버 데이터만 필터링하여 날짜 범위 계산
+                df_magic = df_day[df_day['매직넘버'].notna()].copy()
+                if not df_magic.empty:
+                    date_range_magic = [df_magic['date'].min(), df_magic['date'].max()]
+                else:
+                    date_range_magic = None
+                
+                fig_magic = px.line(
+                    df_day, x='date', y='매직넘버', color='팀명', markers=show_markers,
+                    title='팀별 우승 매직넘버 (일자별)',
+                    category_orders={'팀명': team_order} if team_order else None
+                )
+                try:
+                    for tr in fig_magic.data:
+                        team = tr.name
+                        if team in TEAM_COLOR_MAP:
+                            tr.line.color = TEAM_COLOR_MAP[team]
+                            tr.marker.color = TEAM_COLOR_MAP[team]
+                except Exception:
+                    pass
+                try:
+                    fig_magic.update_traces(marker=dict(size=10))
+                except Exception:
+                    pass
+                fig_magic.update_yaxes(range=[0, 50], dtick=5)  # 매직넘버는 보통 0-50 범위
+                # 동적 날짜 범위 설정
+                if date_range_magic:
+                    fig_magic.update_xaxes(range=date_range_magic)
+                # 마진 설정으로 마커가 잘리지 않도록
+                fig_magic.update_layout(
+                    margin=dict(l=100, r=100, t=100, b=100),
+                    xaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+                    yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                )
+                st.plotly_chart(fig_magic, use_container_width=False)
+                # 그래프 바로 아래에 해당 데이터(피벗) 표시
+                try:
+                    pivot_magic = (
+                        df_day.pivot_table(index='date', columns='팀명', values='매직넘버', aggfunc='mean').sort_index()
+                    )
+                    if team_order:
+                        existing_cols_magic = [c for c in team_order if c in pivot_magic.columns]
+                        pivot_magic = pivot_magic.reindex(columns=existing_cols_magic)
+                    pivot_magic = pivot_magic.dropna(how='all')
+                    with st.expander("🔎 일자별 매직넘버", expanded=False):
+                        safe_dataframe_display(pivot_magic.round(1).reset_index(), use_container_width=True, hide_index=True)
                 except Exception:
                     pass
 
