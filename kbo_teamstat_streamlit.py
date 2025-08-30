@@ -285,6 +285,15 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
         now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
         formatted_time = now_kst.strftime("%Y-%m-%d %H:%M:%S")
         df_out = df_result.copy()
+        
+        # 데이터 안전성 검증 및 정리
+        for col in df_out.columns:
+            if col != '팀명':  # 팀명은 문자열로 유지
+                df_out[col] = pd.to_numeric(df_out[col], errors='coerce')
+                # NaN, 무한대 값을 None으로 변환 (JSON 호환)
+                df_out[col] = df_out[col].replace([np.inf, -np.inf], None)
+                df_out[col] = df_out[col].where(pd.notna(df_out[col]), None)
+        
         # 기준일(base_date)은 KBO 페이지 기준일자(예: 2025-08-10). 없으면 오늘 날짜 사용
         base_date_str = base_date if base_date else now_kst.strftime("%Y-%m-%d")
         df_out.insert(0, "base_date", base_date_str)
@@ -297,7 +306,18 @@ def append_simulation_to_sheet(df_result: pd.DataFrame, sheet_name="SimulationLo
                 st.warning("헤더 추가 실패(계속 진행):\n" + _format_gspread_error(e))
 
         try:
-            ws.append_rows(df_out.values.tolist(), value_input_option="USER_ENTERED")
+            # 데이터를 리스트로 변환할 때 None 값을 빈 문자열로 처리
+            data_rows = []
+            for _, row in df_out.iterrows():
+                row_data = []
+                for val in row:
+                    if pd.isna(val) or val is None:
+                        row_data.append("")
+                    else:
+                        row_data.append(str(val))
+                data_rows.append(row_data)
+            
+            ws.append_rows(data_rows, value_input_option="USER_ENTERED")
         except Exception as e:
             st.error("데이터 추가 실패:\n" + _format_gspread_error(e))
             return
@@ -1537,12 +1557,6 @@ def main():
         log_df = df_final[['팀명','우승확률_퍼센트','플레이오프진출확률_퍼센트','p_wpct']].copy()
         log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
         
-        # 매직넘버 추가 (1위 팀만)
-        if first_team_name and magic_number is not None and not pd.isna(magic_number) and not np.isinf(magic_number):
-            log_df['매직넘버'] = log_df['팀명'].apply(lambda x: int(magic_number) if x == first_team_name else np.nan)
-        else:
-            log_df['매직넘버'] = np.nan
-        
         # Bradley-Terry 모형 결과 추가
         if bt_results:
             log_df['BT_1위확률'] = log_df['팀명'].map({team: results['1위확률'] for team, results in bt_results.items()})
@@ -1550,6 +1564,27 @@ def main():
         else:
             log_df['BT_1위확률'] = np.nan
             log_df['BT_1-5위확률'] = np.nan
+        
+        # 매직넘버 추가 (1위 팀만) - 기존 컬럼들 뒤에 추가
+        if first_team_name and magic_number is not None and not pd.isna(magic_number) and not np.isinf(magic_number):
+            log_df['매직넘버'] = log_df['팀명'].apply(lambda x: int(magic_number) if x == first_team_name else np.nan)
+        else:
+            log_df['매직넘버'] = np.nan
+        
+        # 컬럼 순서 명시적으로 지정 (기존 구글 시트와 호환)
+        column_order = [
+            '팀명', 
+            '우승확률_퍼센트', 
+            '플레이오프진출확률_퍼센트', 
+            '피타고리안승률',
+            'BT_1위확률',
+            'BT_1-5위확률',
+            '매직넘버'
+        ]
+        
+        # 존재하는 컬럼만 선택하여 순서 정렬
+        existing_columns = [col for col in column_order if col in log_df.columns]
+        log_df = log_df[existing_columns].copy()
         
         # 시뮬레이션 결과를 세션에 저장
         st.session_state['simulation_results'] = log_df.copy()
