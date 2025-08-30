@@ -1127,9 +1127,10 @@ def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
     first_wins = int(first_team['승'])
     second_losses = int(second_team['패'])
     
-    # 매직넘버 = 16 - (1위팀 승수 + 2위팀 패수)
-    # 무승부는 승률 계산에만 반영되고, 매직넘버 계산에는 직접적으로 반영되지 않음
-    magic_number = 16 - (first_wins + second_losses)
+    # 매직넘버 = 144 - (1위팀 승수 + 2위팀 패수)
+    # 144는 전체 경기수, 1위팀 승수 + 2위팀 패수는 이미 확정된 승패
+    # 남은 승수 = 144 - (1위팀 승수 + 2위팀 패수)
+    magic_number = 144 - (first_wins + second_losses)
     
     return first_team['팀명'], magic_number
 
@@ -1672,7 +1673,7 @@ def main():
                     st.metric(
                         label=f"🏆 {first_team_name} 매직넘버",
                         value=magic_number,
-                        help="1위 팀이 우승하기 위해 필요한 추가 승수 (16경기 기준)"
+                        help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
                     )
                 else:
                     st.metric(label="매직넘버", value="데이터 없음")
