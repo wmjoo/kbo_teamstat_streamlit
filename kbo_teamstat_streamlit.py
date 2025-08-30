@@ -1110,6 +1110,28 @@ def _validate_sim_inputs(df_final: pd.DataFrame) -> bool:
 # -----------------------------
 # 메인
 # -----------------------------
+def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
+    """1위 팀의 우승 매직넘버를 계산합니다."""
+    if df_standings is None or df_standings.empty:
+        return None, None
+    
+    # 1위 팀과 2위 팀 찾기
+    df_sorted = df_standings.sort_values('승률', ascending=False).reset_index(drop=True)
+    if len(df_sorted) < 2:
+        return None, None
+    
+    first_team = df_sorted.iloc[0]
+    second_team = df_sorted.iloc[1]
+    
+    # 1위 팀 승수, 2위 팀 패수
+    first_wins = int(first_team['승'])
+    second_losses = int(second_team['패'])
+    
+    # 매직넘버 = 144 - (1위팀 승수 + 2위팀 패수)
+    magic_number = 144 - (first_wins + second_losses)
+    
+    return first_team['팀명'], magic_number
+
 def main():
     st.markdown('<h2 class="main-header">⚾ KBO 팀 통계 분석기</h2>', unsafe_allow_html=True)
 
@@ -1124,6 +1146,26 @@ def main():
     if any(x is None for x in [df_hitter, df_hitter_adv, df_pitcher, df_pitcher_adv, df_standings]):
         st.error("데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
         return
+
+    # 팀명 정규화(병합 전)
+    df_hitter = normalize_team_names(df_hitter)
+    df_hitter_adv = normalize_team_names(df_hitter_adv)
+    df_pitcher = normalize_team_names(df_pitcher)
+    df_pitcher_adv = normalize_team_names(df_pitcher_adv)
+    df_standings = normalize_team_names(df_standings)
+
+    # 매직넘버 계산
+    first_team_name, magic_number = calculate_magic_number(df_standings)
+    
+    # 매직넘버 표시
+    if first_team_name and magic_number is not None:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.metric(
+                label=f"🏆 {first_team_name} 우승 매직넘버",
+                value=magic_number,
+                help="1위 팀이 우승하기 위해 필요한 추가 승수 (144경기 기준)"
+            )
 
     # 팀명 정규화(병합 전)
     df_hitter = normalize_team_names(df_hitter)
