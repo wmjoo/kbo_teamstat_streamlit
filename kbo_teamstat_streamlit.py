@@ -1128,14 +1128,23 @@ def calculate_magic_number(df_standings: pd.DataFrame) -> tuple[str, int]:
     first = df_sorted.iloc[0]
     second = df_sorted.iloc[1]
 
-    W1 = int(first['승'])
-    L2 = int(second['패'])
-    T2 = int(second.get('무', 0))  # 컬럼명이 '무'가 아니면 여길 맞춰주세요.
-
-    magic = 145 - W1 - L2 - T2
-    magic = max(magic, 0)  # 음수 방지
-    
-    return first['팀명'], magic
+    try:
+        W1 = int(first['승']) if pd.notna(first['승']) else 0
+        L2 = int(second['패']) if pd.notna(second['패']) else 0
+        T2 = int(second.get('무', 0)) if pd.notna(second.get('무', 0)) else 0
+        
+        # 안전한 계산
+        magic = 145 - W1 - L2 - T2
+        magic = max(magic, 0)  # 음수 방지
+        magic = min(magic, 145)  # 최대값 제한
+        
+        # 유효한 값인지 확인
+        if pd.isna(magic) or np.isinf(magic):
+            return None, None
+            
+        return first['팀명'], int(magic)
+    except (ValueError, TypeError, KeyError):
+        return None, None
 
 def main():
     st.markdown('<h2 class="main-header">⚾ KBO 팀 통계 분석기</h2>', unsafe_allow_html=True)
@@ -1529,8 +1538,8 @@ def main():
         log_df.rename(columns={'p_wpct': '피타고리안승률'}, inplace=True)
         
         # 매직넘버 추가 (1위 팀만)
-        if first_team_name and magic_number is not None:
-            log_df['매직넘버'] = log_df['팀명'].apply(lambda x: magic_number if x == first_team_name else np.nan)
+        if first_team_name and magic_number is not None and not pd.isna(magic_number) and not np.isinf(magic_number):
+            log_df['매직넘버'] = log_df['팀명'].apply(lambda x: int(magic_number) if x == first_team_name else np.nan)
         else:
             log_df['매직넘버'] = np.nan
         
